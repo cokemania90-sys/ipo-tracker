@@ -197,9 +197,7 @@ const Actions = {
     if (!parsed.length) throw new Error("'■ 종목명 (증권사)' 형식의 줄을 찾지 못했어요.");
     return mutate((d) => parsed.map((p) => upsertInto(d, p)), `ipo: 청약 기록 ${parsed.map((p) => p.name).join(", ")}`);
   },
-  addFromSchedule: (s) =>
-    mutate((d) => upsertInto(d, { name: s.name, broker: (s.brokers || "").split(",")[0].trim() || null, schedule_no: s.no,
-      ...Object.fromEntries(SCHED_FIELDS.map((k) => [k, s[k]])) }), `ipo: 청약 기록 ${s.name}`),
+  create: (fields) => mutate((d) => upsertInto(d, { ...fields }), `ipo: 청약 기록 ${fields.name}`),
   update: (id, fields) =>
     mutate((d) => { const r = d.records.find((x) => x.id === id); if (r) Object.assign(r, fields); }, `ipo: ${fields.name || "기록"} 수정`),
   remove: (id) => mutate((d) => { d.records = d.records.filter((x) => x.id !== id); }, "ipo: 기록 삭제"),
@@ -263,6 +261,9 @@ async function loadSchedule() {
     const j = await res.json();
     S.schedule = j.items || [];
     S.lastRefresh = j.last_refresh;
+    // 종목명 자동완성: 최근 일정부터
+    $("#schedList").innerHTML = S.schedule.slice().sort((a, b) => b.sub_start.localeCompare(a.sub_start))
+      .map((s) => `<option value="${esc(s.name)}">${md(s.sub_start)}~${md(s.sub_end)} · ${esc(s.brokers || "")}</option>`).join("");
   } catch (e) {
     toast("일정 데이터를 불러오지 못했어요");
   }
@@ -409,13 +410,9 @@ function openEvent(ref) {
       <button class="ghost" data-close>닫기</button>
       <button class="primary" id="btnSchAdd">청약할래요</button>
     </div>`;
-  $("#btnSchAdd").onclick = async () => {
-    try {
-      const r = await Actions.addFromSchedule(s);
-      $("#dlgEvent").close();
-      toast(`${s.name} 청약 기록을 추가했어요`);
-      openRecord(r.id);
-    } catch (e) { toast(e.message); }
+  $("#btnSchAdd").onclick = () => {
+    $("#dlgEvent").close();
+    openNewRecord(fromSchedule(s));
   };
   $("#dlgEvent").showModal();
 }
@@ -459,12 +456,65 @@ function renderRecords() {
 let curId = null;
 const curRec = () => S.records.find((x) => x.id === curId);
 
+/** 일정(38) 정보 -> 기록 입력값 */
+function fromSchedule(s) {
+  const out = { name: s.name, schedule_no: s.no, broker: (s.brokers || "").split(",")[0].trim() || null };
+  for (const k of SCHED_FIELDS) out[k] = s[k];
+  return out;
+}
+
+function setBrokerOptions(sch) {
+  const mine = S.records.map((r) => r.broker);
+  const fromSch = sch ? (sch.brokers || "").split(",").map((b) => b.trim()) : [];
+  $("#brokerList").innerHTML = [...new Set([...fromSch, ...mine].filter(Boolean))].map((b) => `<option value="${esc(b)}">`).join("");
+}
+
+/** 종목명이 일정에 있으면 비어 있는 칸을 채움 */
+function autofillFromName() {
+  const f = $("#formRec");
+  const s = findSchedule(f.name.value.trim());
+  const msg = $("#autofillMsg");
+  setBrokerOptions(s);
+  if (!s) { msg.classList.add("hidden"); return; }
+  const v = fromSchedule(s);
+  const filled = [];
+  for (const [k, val] of Object.entries(v)) {
+    const el = f.elements[k];
+    if (el && val != null && el.value === "") { el.value = val; if (k !== "schedule_no") filled.push(k); }
+  }
+  f.schedule_no.value = s.no;
+  const brokers = (s.brokers || "").split(",").map((b) => b.trim()).filter(Boolean);
+  msg.textContent = `38 일정에서 불러왔어요${filled.length ? ` (${filled.length}개 항목)` : ""}${brokers.length > 1 ? ` · 주간사: ${brokers.join(", ")}` : ""}`;
+  msg.classList.remove("hidden");
+}
+
+/** 새 기록 입력 (수기 입력 / 캘린더에서 불러오기) */
+function openNewRecord(prefill = {}) {
+  curId = null;
+  const f = $("#formRec");
+  f.reset();
+  for (const el of f.elements) if (el.name) el.value = prefill[el.name] ?? "";
+  $("#recTitle").textContent = "새 청약 기록";
+  $("#recStatus").classList.add("hidden");
+  $("#salesSection").classList.add("hidden");
+  $("#btnDelRec").classList.add("hidden");
+  $("#autofillMsg").classList.add("hidden");
+  if (prefill.name) autofillFromName(); else setBrokerOptions(null);
+  if (!$("#dlgRec").open) $("#dlgRec").showModal();
+  (prefill.name ? f.broker : f.name).focus();
+}
+
 function openRecord(id) {
   const r = S.records.find((x) => x.id === id);
   if (!r) return;
   curId = id;
   const f = $("#formRec");
   for (const el of f.elements) if (el.name) el.value = r[el.name] ?? "";
+  $("#recStatus").classList.remove("hidden");
+  $("#salesSection").classList.remove("hidden");
+  $("#btnDelRec").classList.remove("hidden");
+  $("#autofillMsg").classList.add("hidden");
+  setBrokerOptions(S.schedule.find((x) => x.no === r.schedule_no));
   $("#recTitle").textContent = r.name;
   const [label, c] = status(r);
   $("#recStatus").className = "badge " + c;
@@ -719,9 +769,25 @@ function bind() {
   $("#recSearch").oninput = renderRecords;
 
   $("#btnSaveRec").onclick = async () => {
-    try { await Actions.update(curId, formValues($("#formRec"))); openRecord(curId); toast("저장했어요"); }
-    catch (e) { toast(e.message); }
+    const vals = formValues($("#formRec"));
+    if (!vals.name) { toast("종목명을 입력하세요"); return $("#formRec").name.focus(); }
+    const btn = $("#btnSaveRec");
+    btn.disabled = true;
+    try {
+      if (curId) {
+        await Actions.update(curId, vals);
+        toast("저장했어요");
+      } else {
+        const r = await Actions.create(vals);
+        curId = r.id;
+        toast(r.created ? `${r.name} 청약 기록을 추가했어요` : `${r.name} 기존 기록에 합쳤어요`);
+      }
+      openRecord(curId);
+    } catch (e) { toast(e.message); }
+    btn.disabled = false;
   };
+  $("#formRec").name.addEventListener("change", autofillFromName);
+  $("#btnManual").onclick = () => { $("#dlgAdd").close(); openNewRecord(); };
   $("#btnDelRec").onclick = async () => {
     const r = curRec();
     if (!r || !confirm(`${r.name} 기록을 삭제할까요? 매도 기록도 함께 삭제돼요.`)) return;

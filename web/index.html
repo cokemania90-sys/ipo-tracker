@@ -122,6 +122,10 @@
 <dialog id="dlgAdd" class="dlg">
   <form method="dialog" class="dlg-body" id="formAdd">
     <h2>청약 기록 추가</h2>
+    <div class="seg">
+      <button type="button" class="on">메시지 붙여넣기</button>
+      <button type="button" id="btnManual">직접 입력</button>
+    </div>
     <p class="muted">공모주 알림 메시지를 그대로 붙여넣으세요. <code>■ 종목 (증권사)</code> 블록이 여러 개여도 한 번에 저장돼요.</p>
     <textarea id="addText" rows="12" placeholder="■ 옵토닉스 (한국투자증권)&#10;  청약기간: 2026.11.05~11.06&#10;  환불일: 2026.11.10&#10;  상장일: 2026.11.17&#10;  공모가: 12,000&#10;  ..."></textarea>
     <div id="addPreview" class="preview"></div>
@@ -145,7 +149,8 @@
       <span id="recStatus" class="badge"></span>
     </div>
     <form id="formRec" class="grid-form">
-      <label>종목명<input name="name" required></label>
+      <label>종목명<input name="name" list="schedList" autocomplete="off" placeholder="입력하면 일정에서 자동 채움" required></label>
+      <input type="hidden" name="schedule_no" data-num>
       <label>증권사<input name="broker" list="brokerList"></label>
       <label>계좌/명의<input name="account" placeholder="예: 본인, 배우자"></label>
       <label>청약 시작<input name="sub_start" type="date"></label>
@@ -164,6 +169,8 @@
       <label class="span2">메모<input name="memo"></label>
     </form>
 
+    <p id="autofillMsg" class="muted small hidden"></p>
+    <div id="salesSection">
     <h3 class="mt">매도 기록</h3>
     <div class="table-wrap">
       <table class="mini" id="salesTable"></table>
@@ -177,6 +184,7 @@
     </form>
     <p class="muted small">수수료·세금을 비워두면 매도금액의 <input id="feeRate" class="tiny" inputmode="decimal">% 로 자동 계산돼요.</p>
     <div id="recSummary" class="rec-summary"></div>
+    </div>
 
     <div class="dlg-actions">
       <button type="button" class="danger ghost" id="btnDelRec">삭제</button>
@@ -210,6 +218,7 @@
 </dialog>
 
 <datalist id="brokerList"></datalist>
+<datalist id="schedList"></datalist>
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
 </body>
