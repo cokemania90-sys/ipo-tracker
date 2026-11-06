@@ -2,6 +2,7 @@
 """38.co.kr 공모주 일정 스크래핑 공통 모듈 (표준 라이브러리만 사용)"""
 import html
 import re
+import ssl
 import sys
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -57,10 +58,34 @@ def strip_tags(h):
     return re.sub(r"\s+", " ", h).strip()
 
 
+def _legacy_ssl():
+    # 38.co.kr은 오래된 TLS 설정이라 최신 OpenSSL 3(우분투 러너)에서 핸드셰이크가 거부됨 -> 보안 수준을 낮춘 컨텍스트 사용
+    ctx = ssl.create_default_context()
+    try:
+        ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+    except ssl.SSLError:
+        pass
+    ctx.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x4)
+    try:
+        ctx.minimum_version = ssl.TLSVersion.TLSv1
+    except (ValueError, AttributeError):
+        pass
+    return ctx
+
+
+_CTX = _legacy_ssl()
+
+
 def fetch(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=25) as r:
-        return r.read().decode("cp949", "replace")
+    last = None
+    for u in (url, url.replace("https://", "http://", 1)):
+        try:
+            req = urllib.request.Request(u, headers=UA)
+            with urllib.request.urlopen(req, timeout=25, context=_CTX) as r:
+                return r.read().decode("cp949", "replace")
+        except Exception as e:  # https 실패 시 http로 한 번 더
+            last = e
+    raise last
 
 
 def parse_list(h):
