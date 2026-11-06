@@ -1,0 +1,33 @@
+# 공모주 기록장: 매일 아침 상장일 알림을 핸드폰(ntfy)으로 전송
+name: ipo-notify
+
+on:
+  schedule:
+    - cron: "30 23 * * *"   # UTC 23:30 = KST 08:30 (GitHub 사정으로 수~수십 분 늦을 수 있음)
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "테스트 알림 보내기"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 상장일 알림
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RECORDS_TOKEN: ${{ secrets.RECORDS_TOKEN }}
+          RECORDS_REPO: cokemania90-sys/claud1
+          RECORDS_PATH: ipo-tracker/records.json
+          APP_URL: https://cokemania90-sys.github.io/ipo-tracker/
+          TEST: ${{ inputs.test && '1' || '' }}
+        run: python scripts/notify.py

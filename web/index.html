@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공모주 기록장</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23e5484d'/><path d='M7 21l6-6 4 4 8-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<meta name="theme-color" content="#3b5bdb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <h1>공모주 기록장</h1>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="calendar" class="on">캘린더</button>
+    <button role="tab" data-tab="records">내 청약</button>
+    <button role="tab" data-tab="stats">수익 통계</button>
+  </nav>
+  <div class="top-actions">
+    <button id="btnSettings" class="ghost icon" title="GitHub 연결 설정" aria-label="설정">⚙</button>
+    <button id="btnAdd" class="primary">+ 청약 기록</button>
+  </div>
+</header>
+
+<div id="connBar" class="conn-bar hidden"></div>
+<div id="alertBar" class="alert-bar hidden"></div>
+
+<main>
+  <!-- 캘린더 -->
+  <section id="tab-calendar" class="tab on">
+    <div class="cal-layout">
+      <div class="card cal-card">
+        <div class="cal-head">
+          <div class="cal-nav">
+            <button class="icon" id="calPrev" aria-label="이전 달">‹</button>
+            <h2 id="calTitle"></h2>
+            <button class="icon" id="calNext" aria-label="다음 달">›</button>
+            <button class="ghost sm" id="calToday">오늘</button>
+          </div>
+          <div class="cal-filters">
+            <label><input type="checkbox" id="fSub" checked> <i class="dot sub"></i>청약</label>
+            <label><input type="checkbox" id="fList" checked> <i class="dot list"></i>상장</label>
+            <label><input type="checkbox" id="fRefund" checked> <i class="dot refund"></i>환불</label>
+            <label><input type="checkbox" id="fMine"> ★ 내 청약만</label>
+          </div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-foot">
+          <span id="lastRefresh" class="muted"></span>
+          <a class="muted" href="https://www.38.co.kr/html/fund/index.htm?o=k" target="_blank" rel="noopener">출처: 38커뮤니케이션 ↗</a>
+        </div>
+      </div>
+      <aside class="card side">
+        <h3>내 다가오는 일정</h3>
+        <ul id="upcoming" class="upcoming"></ul>
+        <h3 class="mt">이번 주 청약</h3>
+        <ul id="weekSubs" class="upcoming"></ul>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 내 청약 -->
+  <section id="tab-records" class="tab">
+    <div class="card">
+      <div class="rec-head">
+        <div class="seg" id="recFilter">
+          <button data-f="all" class="on">전체</button>
+          <button data-f="active">진행중</button>
+          <button data-f="holding">보유중</button>
+          <button data-f="done">매도완료</button>
+        </div>
+        <input type="search" id="recSearch" placeholder="종목·증권사 검색">
+      </div>
+      <div class="table-wrap">
+        <table class="rec-table">
+          <thead><tr>
+            <th>상태</th><th>종목</th><th>증권사</th><th>청약</th><th>상장일</th>
+            <th class="r">공모가</th><th class="r">배정</th><th class="r">매도</th>
+            <th class="r">실현손익</th><th class="r">수익률</th>
+          </tr></thead>
+          <tbody id="recBody"></tbody>
+        </table>
+      </div>
+      <p id="recEmpty" class="empty hidden">아직 기록이 없어요. 오른쪽 위 <b>+ 청약 기록</b>에 청약 메시지를 붙여넣어 보세요.</p>
+    </div>
+  </section>
+
+  <!-- 통계 -->
+  <section id="tab-stats" class="tab">
+    <div class="stats-head">
+      <div class="seg" id="statYear"></div>
+      <div class="seg" id="statPeriod">
+        <button data-p="month" class="on">월별</button>
+        <button data-p="quarter">분기별</button>
+        <button data-p="year">연도별</button>
+      </div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="stats-grid">
+      <div class="card">
+        <h3>기간별 실현손익</h3>
+        <div id="periodChart" class="bar-chart"></div>
+      </div>
+      <div class="card">
+        <h3>증권사별 수익률</h3>
+        <div class="table-wrap"><table class="mini" id="brokerTable"></table></div>
+      </div>
+      <div class="card">
+        <h3>종목별 손익 순위</h3>
+        <div class="table-wrap"><table class="mini" id="rankTable"></table></div>
+      </div>
+    </div>
+    <p class="muted note">실현손익 = 매도금액 − (매도수량 × 공모가) − 매도 수수료·세금 − 청약수수료. 기간은 첫 매도일 기준이에요.</p>
+  </section>
+</main>
+
+<!-- 메시지 붙여넣기 -->
+<dialog id="dlgAdd" class="dlg">
+  <form method="dialog" class="dlg-body" id="formAdd">
+    <h2>청약 기록 추가</h2>
+    <p class="muted">공모주 알림 메시지를 그대로 붙여넣으세요. <code>■ 종목 (증권사)</code> 블록이 여러 개여도 한 번에 저장돼요.</p>
+    <textarea id="addText" rows="12" placeholder="■ 옵토닉스 (한국투자증권)&#10;  청약기간: 2026.11.05~11.06&#10;  환불일: 2026.11.10&#10;  상장일: 2026.11.17&#10;  공모가: 12,000&#10;  ..."></textarea>
+    <div id="addPreview" class="preview"></div>
+    <div class="dlg-actions">
+      <button type="button" class="ghost" data-close>취소</button>
+      <button type="submit" class="primary" id="btnAddSave">기록하기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 일정 상세 -->
+<dialog id="dlgEvent" class="dlg">
+  <div class="dlg-body" id="eventBody"></div>
+</dialog>
+
+<!-- 기록 편집 -->
+<dialog id="dlgRec" class="dlg wide">
+  <div class="dlg-body">
+    <div class="rec-title">
+      <h2 id="recTitle"></h2>
+      <span id="recStatus" class="badge"></span>
+    </div>
+    <form id="formRec" class="grid-form">
+      <label>종목명<input name="name" required></label>
+      <label>증권사<input name="broker" list="brokerList"></label>
+      <label>계좌/명의<input name="account" placeholder="예: 본인, 배우자"></label>
+      <label>청약 시작<input name="sub_start" type="date"></label>
+      <label>청약 마감<input name="sub_end" type="date"></label>
+      <label>환불일<input name="refund_date" type="date"></label>
+      <label>상장일<input name="listing_date" type="date"></label>
+      <label>공모가(원)<input name="offer_price" inputmode="numeric" data-num></label>
+      <label>기관경쟁률<input name="inst_competition"></label>
+      <label>의무보유확약(%)<input name="lockup_pct" inputmode="decimal" data-num></label>
+      <label>공모금액(백만원)<input name="offer_amount" inputmode="numeric" data-num></label>
+      <label>진입가능척도<input name="entry_score" inputmode="decimal" data-num></label>
+      <label>청약수량(주)<input name="applied_qty" inputmode="numeric" data-num></label>
+      <label>증거금(원)<input name="deposit" inputmode="numeric" data-num></label>
+      <label class="hl">배정수량(주)<input name="allocated_qty" inputmode="numeric" data-num></label>
+      <label>청약수수료(원)<input name="sub_fee" inputmode="numeric" data-num></label>
+      <label class="span2">메모<input name="memo"></label>
+    </form>
+
+    <h3 class="mt">매도 기록</h3>
+    <div class="table-wrap">
+      <table class="mini" id="salesTable"></table>
+    </div>
+    <form id="formSale" class="sale-form">
+      <input name="sell_date" type="date" required aria-label="매도일">
+      <input name="qty" inputmode="numeric" placeholder="수량" required aria-label="수량">
+      <input name="price" inputmode="numeric" placeholder="매도가" required aria-label="매도가">
+      <input name="fee" inputmode="numeric" placeholder="수수료·세금" aria-label="수수료·세금">
+      <button class="primary sm" type="submit">매도 추가</button>
+    </form>
+    <p class="muted small">수수료·세금을 비워두면 매도금액의 <input id="feeRate" class="tiny" inputmode="decimal">% 로 자동 계산돼요.</p>
+    <div id="recSummary" class="rec-summary"></div>
+
+    <div class="dlg-actions">
+      <button type="button" class="danger ghost" id="btnDelRec">삭제</button>
+      <span class="grow"></span>
+      <button type="button" class="ghost" data-close>닫기</button>
+      <button type="button" class="primary" id="btnSaveRec">저장</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- GitHub 연결 설정 -->
+<dialog id="dlgSettings" class="dlg">
+  <form class="dlg-body" id="formSettings">
+    <h2>GitHub 연결</h2>
+    <p class="muted">청약·매도 기록을 GitHub 저장소의 파일에 저장해서 PC·핸드폰 어디서든 같은 기록을 봐요. 토큰은 <b>이 기기 브라우저에만</b> 저장돼요.</p>
+    <div class="grid-form two">
+      <label>기록 저장소 (비공개 권장)<input name="repo" placeholder="cokemania90-sys/claud1" required></label>
+      <label>브랜치<input name="branch" placeholder="비우면 기본 브랜치"></label>
+      <label class="span2">기록 파일 경로<input name="path" placeholder="ipo-tracker/data/records.json"></label>
+      <label class="span2">토큰 (Fine-grained, Contents: Read and write)<input name="token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+    </div>
+    <p class="muted small">토큰 만들기: GitHub → Settings → Developer settings → Fine-grained tokens → Repository access에서 <b>claud1만</b> 선택 → Permissions의 <b>Contents</b>를 Read and write로.</p>
+    <div id="settingsMsg" class="preview"></div>
+    <div class="dlg-actions">
+      <button type="button" class="danger ghost" id="btnDisconnect">연결 해제</button>
+      <span class="grow"></span>
+      <button type="button" class="ghost" data-close>취소</button>
+      <button type="submit" class="primary">연결 테스트 후 저장</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="brokerList"></datalist>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

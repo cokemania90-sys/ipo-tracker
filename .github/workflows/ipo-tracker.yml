@@ -1,0 +1,63 @@
+# 공모주 기록장: 6시간마다 38.co.kr 일정 갱신 -> schedule.json 커밋 -> GitHub Pages 배포
+name: ipo-tracker
+
+on:
+  schedule:
+    - cron: "10 */6 * * *"   # UTC 기준 6시간마다 (KST 09:10, 15:10, 21:10, 03:10)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "모든 종목 상세 정보 다시 가져오기"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "scripts/**"
+      - ".github/workflows/ipo-tracker.yml"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ipo-tracker
+  cancel-in-progress: false
+
+jobs:
+  scrape-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 38.co.kr 일정 가져오기
+        run: python scripts/scrape.py ${{ inputs.force && '--force' || '' }}
+
+      - name: schedule.json 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data/schedule.json
+          if git diff --cached --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "ipo: 공모주 일정 갱신"
+            git pull --rebase origin ${{ github.ref_name }}
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deploy
+        uses: actions/deploy-pages@v4
