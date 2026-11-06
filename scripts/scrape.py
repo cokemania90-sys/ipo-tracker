@@ -21,6 +21,8 @@ def main():
             for s in json.load(f).get("items", []):
                 items[s["no"]] = s
     result = core.refresh(items, force="--force" in sys.argv)
+    if result["list"] == 0:
+        sys.exit("38.co.kr 목록을 하나도 가져오지 못했어요 (사이트 접속 실패 또는 구조 변경)")
     data = {
         "last_refresh": core.now_kst().isoformat(timespec="seconds"),
         "items": sorted(items.values(), key=lambda s: (s.get("sub_start") or "", s["no"])),

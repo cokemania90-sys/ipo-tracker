@@ -34,6 +34,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}   # 재실행 때도 최신 커밋 기준
 
       - uses: actions/setup-python@v5
         with:
@@ -51,7 +53,8 @@ jobs:
             echo "변경 없음"
           else
             git commit -m "ipo: 공모주 일정 갱신"
-            git pull --rebase origin ${{ github.ref_name }}
+            # schedule.json은 매번 새로 만드는 파일이라 충돌 시 방금 가져온 쪽을 사용
+            git pull --rebase -X theirs origin ${{ github.ref_name }}
             git push
           fi
 
