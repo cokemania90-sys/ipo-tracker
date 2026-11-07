@@ -78,7 +78,7 @@ const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.rep
 const EMPTY = () => ({ version: 1, records: [] });
 
 // 내 기록은 비공개 저장소에 저장 (이 앱 화면은 공개 저장소의 GitHub Pages)
-const DEFAULT_DATA = { repo: "cokemania90-sys/claud1", branch: "", path: "ipo-tracker/records.json" };
+const DEFAULT_DATA = { repo: "", branch: "", path: "ipo-tracker/records.json" }; // 저장소는 각자 입력
 function ghConfig() {
   const c = ls.get("gh", null);
   return c && c.token && c.repo ? { ...DEFAULT_DATA, ...c } : null;
@@ -381,7 +381,7 @@ function renderConn() {
     return;
   }
   const n = (ls.get("records", EMPTY()).records || []).length;
-  bar.innerHTML = `⚠ GitHub 미연결 — 기록이 <b>이 기기에만</b> 저장돼요${n ? ` (${n}건)` : ""}. 핸드폰·PC에서 같이 보려면 연결하세요. <button class="primary" id="btnConnBar">GitHub 연결</button>`;
+  bar.innerHTML = `⚠ GitHub 미연결 — 기록이 <b>이 기기에만</b> 저장돼요${n ? ` (${n}건)` : ""}. 기록을 보관하려면 연결하세요. <button class="ghost" data-help>📖 사용법</button> <button class="primary" id="btnConnBar">GitHub 연결</button>`;
   bar.classList.remove("hidden");
   $("#btnConnBar").onclick = openSettings;
 }
@@ -1234,6 +1234,14 @@ function bind() {
   });
 
   // 메시지로 기록 추가
+  // 사용 설명서
+  const openHelp = () => { document.querySelectorAll("dialog[open]").forEach((d) => d.close()); $("#dlgHelp").showModal(); ls.set("helpSeen", true); };
+  $("#btnHelp").onclick = openHelp;
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-help]")) openHelp(); });
+  $("#btnHelpConnect").onclick = () => { $("#dlgHelp").close(); openSettings(); };
+  // 처음 방문했고 GitHub 미연결이면 한 번 자동으로 보여줌
+  if (!ls.get("helpSeen", false) && !ghConfig()) setTimeout(openHelp, 600);
+
   $("#btnAdd").onclick = () => { $("#addText").value = ""; $("#addPreview").innerHTML = ""; $("#dlgAdd").showModal(); $("#addText").focus(); };
   $("#addText").oninput = () => {
     const p = parseMessage($("#addText").value);
