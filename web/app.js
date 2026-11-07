@@ -254,6 +254,8 @@ const loanDays = (subEnd, refund) => daysBetween(subEnd, refund);
 const interestOf = (amount, ratePct, days) => (amount && ratePct && days ? Math.round((amount * ratePct / 100 * days) / 365) : 0);
 /** 기록의 마통 이자 (기록에 저장된 금리 우선, 없으면 설정 금리) */
 function loanInterest(r) {
+  // 예전 시트에서 가져온 기록처럼 실제 이자 금액이 저장돼 있으면 그 값을 그대로 사용
+  if (r.loan_interest != null && r.loan_interest !== "") return +r.loan_interest || 0;
   const rate = r.loan_rate != null && r.loan_rate !== "" ? +r.loan_rate : +appSettings().loanRate || 0;
   return interestOf(+r.loan_amount || 0, rate, loanDays(r.sub_end || r.sub_start, r.refund_date));
 }
@@ -663,7 +665,8 @@ function syncLoan() {
   const rate = toNum(f.loan_rate.value);
   const days = loanDays(f.sub_end.value || f.sub_start.value, f.refund_date.value);
   const it = interestOf(amt, rate, days);
-  $("#loanHint").textContent = amt && rate ? (days ? `이자 약 ${won(it)}원 · ${days}일` : "환불일 입력 시 계산") : "";
+  const saved = curId && curRec() && curRec().loan_interest;
+  $("#loanHint").textContent = saved != null && saved !== "" ? `기록된 이자 ${won(saved)}원` : amt && rate ? (days ? `이자 약 ${won(it)}원 · ${days}일` : "환불일 입력 시 계산") : "";
 }
 
 /* ============================================================ 마통 계산 탭 */
