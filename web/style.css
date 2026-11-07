@@ -206,6 +206,15 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .formula .state.on { background: var(--accent-soft); color: var(--accent); }
 @media (max-width: 700px) { .formula dl { grid-template-columns: 1fr; gap: 2px; } .formula dd { margin-bottom: 8px; } }
 
+/* GitHub 연결 상태 */
+#btnSettings { position: relative; }
+#btnSettings.connected::after { content: ""; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #12a150; box-shadow: 0 0 0 2px var(--surface); }
+.conn-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.conn-status.on { background: #e3f6ea; }
+.conn-status.off { background: var(--up-soft); }
+:root[data-theme="dark"] .conn-status.on { background: #143323; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .conn-status.on { background: #143323; } }
+
 /* 사용 설명서 */
 .help-btn { padding: 6px 10px; }
 @media (max-width: 700px) { .help-btn span { display: none; } }

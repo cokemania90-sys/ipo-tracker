@@ -247,6 +247,7 @@
 <dialog id="dlgSettings" class="dlg">
   <form class="dlg-body" id="formSettings">
     <h2>GitHub 연결</h2>
+    <div id="connStatus" class="conn-status"></div>
     <p class="muted">청약·매도 기록을 GitHub 저장소의 파일에 저장해서 PC·핸드폰 어디서든 같은 기록을 봐요. 토큰은 <b>이 기기 브라우저에만</b> 저장돼요.</p>
     <div class="grid-form two">
       <label>기록 저장소 (비공개 권장)<input name="repo" placeholder="내아이디/ipo-data" required></label>
@@ -257,7 +258,6 @@
     <p class="muted small">토큰 만들기: GitHub → Settings → Developer settings → Fine-grained tokens → Repository access에서 <b>기록용 저장소만</b> 선택 → Permissions의 <b>Contents</b>를 Read and write로. 자세한 순서는 <button type="button" class="linkish" data-help>📖 사용법</button>을 보세요.</p>
     <div id="settingsMsg" class="preview"></div>
     <div class="dlg-actions">
-      <button type="button" class="danger ghost" id="btnDisconnect">연결 해제</button>
       <button type="button" class="ghost" id="btnFees">증권사 수수료 표</button>
       <span class="grow"></span>
       <button type="button" class="ghost" data-close>취소</button>

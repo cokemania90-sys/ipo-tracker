@@ -376,6 +376,9 @@ function renderAll() {
 
 function renderConn() {
   const bar = $("#connBar");
+  const gear = $("#btnSettings");
+  gear.classList.toggle("connected", store.kind === "github");
+  gear.title = store.kind === "github" ? `GitHub 연결됨 (${store.cfg.repo}) · 설정/해제` : "GitHub 연결 안 됨 · 연결하기";
   if (store.kind === "github") {
     bar.classList.add("hidden");
     return;
@@ -1120,8 +1123,22 @@ function openSettings() {
   f.path.value = c.path || DEFAULT_DATA.path;
   f.token.value = c.token || "";
   $("#settingsMsg").innerHTML = "";
-  $("#btnDisconnect").classList.toggle("hidden", !c.token);
+  const on = store.kind === "github";
+  $("#connStatus").className = "conn-status " + (on ? "on" : "off");
+  $("#connStatus").innerHTML = on
+    ? `<span>✅ 연결됨 · <b>${esc(store.cfg.repo)}</b><br><small class="muted">기록이 이 GitHub 저장소에 저장되고 있어요.</small></span><button type="button" class="danger sm" id="btnDisconnect">연결 해제</button>`
+    : `<span>⚠ 연결 안 됨<br><small class="muted">기록이 이 기기 브라우저에만 저장되고 있어요.</small></span>`;
+  const dc = $("#btnDisconnect");
+  if (dc) dc.onclick = disconnectGitHub;
   $("#dlgSettings").showModal();
+}
+
+function disconnectGitHub() {
+  if (!confirm("이 기기에서 GitHub 연결을 해제할까요? (GitHub의 기록은 그대로 남아요)")) return;
+  ls.del("gh");
+  store = LocalStore;
+  $("#dlgSettings").close();
+  loadAll();
 }
 
 async function saveSettings(e) {
@@ -1351,13 +1368,6 @@ function bind() {
 
   $("#btnSettings").onclick = openSettings;
   $("#formSettings").onsubmit = saveSettings;
-  $("#btnDisconnect").onclick = () => {
-    if (!confirm("이 기기에서 GitHub 연결을 해제할까요? (GitHub의 기록은 그대로 남아요)")) return;
-    ls.del("gh");
-    store = LocalStore;
-    $("#dlgSettings").close();
-    loadAll();
-  };
 }
 
 async function delSale(saleId) {
