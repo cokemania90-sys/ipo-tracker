@@ -203,7 +203,7 @@
       <label>공모가(원)<input name="offer_price" inputmode="numeric" data-num></label>
       <label>기관경쟁률<input name="inst_competition"></label>
       <label>의무보유확약(%)<input name="lockup_pct" inputmode="decimal" data-num></label>
-      <label>공모금액(백만원)<input name="offer_amount" inputmode="numeric" data-num></label>
+      <label>공모금액(원)<input name="offer_amount" inputmode="numeric" data-num></label>
       <label>진입가능척도<input name="entry_score" inputmode="decimal" data-num></label>
       <label>청약수량(주)<input name="applied_qty" inputmode="numeric" data-num></label>
       <label>증거금(원) <span id="depHint" class="dep-hint"></span><input name="deposit" inputmode="numeric" data-num></label>
@@ -224,9 +224,9 @@
     </div>
     <form id="formSale" class="sale-form">
       <input name="sell_date" type="date" required aria-label="매도일">
-      <input name="qty" inputmode="numeric" placeholder="수량" required aria-label="수량">
-      <input name="price" inputmode="numeric" placeholder="매도가" required aria-label="매도가">
-      <input name="fee" inputmode="numeric" placeholder="수수료·세금" aria-label="수수료·세금">
+      <input name="qty" data-num inputmode="numeric" placeholder="수량" required aria-label="수량">
+      <input name="price" data-num inputmode="numeric" placeholder="매도가" required aria-label="매도가">
+      <input name="fee" data-num inputmode="numeric" placeholder="수수료·세금" aria-label="수수료·세금">
       <button class="primary sm" type="submit">매도 추가</button>
     </form>
     <p class="muted small">수수료·세금을 비워두면 매도금액의 <input id="feeRate" class="tiny" inputmode="decimal">% 로 자동 계산돼요.</p>

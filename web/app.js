@@ -41,6 +41,37 @@ function busy(on) {
   if (!on && b) b.remove();
 }
 
+/* ============================================================ 숫자 입력: 1,000 단위 콤마 · 단위 변환 */
+// 공모금액은 38·청약 메시지에서 백만원 단위로 저장 → 입력 칸은 원 단위로 보여주고 받음
+const UNIT_MULT = { offer_amount: 1e6 };
+function fmtNum(v) {
+  if (v == null || v === "") return "";
+  const s = String(v).replace(/,/g, "").trim();
+  const m = s.match(/^(-?)(\d*)(\.\d*)?$/);
+  if (!m) return String(v);
+  return m[1] + (m[2] ? BigInt(m[2]).toLocaleString("en-US") : "") + (m[3] || "");
+}
+/** 폼 칸에 값 넣기 (숫자 칸은 단위 변환 + 콤마) */
+function setField(el, v) {
+  if (v == null || v === "") { el.value = ""; return; }
+  if (!el.hasAttribute("data-num") || el.type === "hidden") { el.value = v; return; }
+  if (UNIT_MULT[el.name]) v = Math.round(+v * UNIT_MULT[el.name]);
+  el.value = fmtNum(v);
+}
+// 입력하는 동안 콤마 자동 표시 (커서 위치 유지)
+document.addEventListener("input", (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || !el.hasAttribute("data-num") || el.type === "hidden") return;
+  const old = el.value, pos = el.selectionStart ?? old.length;
+  const before = old.slice(0, pos).replace(/[^\d.]/g, "").length;
+  const nv = fmtNum(old.replace(/[^\d.\-]/g, ""));
+  if (nv === old) return;
+  el.value = nv;
+  let i = 0;
+  for (let c = 0; i < nv.length && c < before; i++) if (/[\d.]/.test(nv[i])) c++;
+  try { el.setSelectionRange(i, i); } catch (err) { /* 일부 입력 타입은 커서 지정 불가 */ }
+});
+
 /* ============================================================ 저장소 */
 const b64encode = (str) => { const bytes = new TextEncoder().encode(str); let bin = ""; for (const x of bytes) bin += String.fromCharCode(x); return btoa(bin); };
 const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, "")), (c) => c.charCodeAt(0)));
@@ -462,7 +493,7 @@ function openEvent(ref) {
       ${row("기관경쟁률", esc(s.inst_competition))}
       ${row("의무보유확약", s.lockup_pct != null ? s.lockup_pct + "%" : "")}
       ${row("청약경쟁률", esc(s.competition))}
-      ${row("공모금액", s.offer_amount ? won(s.offer_amount) + " 백만원" : "")}
+      ${row("공모금액", s.offer_amount ? won(s.offer_amount * 1e6) + "원" : "")}
       ${row("청약한도", s.sub_limit ? esc(s.sub_limit) + "주" : "")}
     </dl>
     <div class="dlg-actions">
@@ -543,7 +574,7 @@ function autofillFromName() {
   const filled = [];
   for (const [k, val] of Object.entries(v)) {
     const el = f.elements[k];
-    if (el && val != null && el.value === "") { el.value = val; if (k !== "schedule_no") filled.push(k); }
+    if (el && val != null && el.value === "") { setField(el, val); if (k !== "schedule_no") filled.push(k); }
   }
   f.schedule_no.value = s.no;
   const brokers = (s.brokers || "").split(",").map((b) => b.trim()).filter(Boolean);
@@ -575,7 +606,7 @@ function syncDeposit(initial) {
   const dep = f.deposit;
   const calc = calcDeposit();
   if (initial) dep.dataset.auto = dep.value === "" || (calc != null && toNum(dep.value) === calc) ? "1" : "0";
-  if (dep.dataset.auto === "1") dep.value = calc ?? "";
+  if (dep.dataset.auto === "1") dep.value = fmtNum(calc ?? "");
   const { price, rate, priceNote } = depositBasis();
   $("#depHint").textContent = dep.dataset.auto === "1" && price ? `자동 · ${rate}%${priceNote ? " · " + priceNote : ""}` : "";
 }
@@ -647,7 +678,7 @@ function syncFee(initial) {
   const alloc = toNum(allocRaw);
   const fee = allocRaw === "" ? null : alloc > 0 ? feeFor(f.broker.value) : 0;
   if (initial) el.dataset.auto = el.value === "" || (fee != null && toNum(el.value) === fee) ? "1" : "0";
-  if (el.dataset.auto === "1") el.value = fee ?? "";
+  if (el.dataset.auto === "1") el.value = fmtNum(fee ?? "");
   let hint = "";
   if (el.dataset.auto === "1") {
     if (allocRaw === "") hint = "배정 입력 시 자동";
@@ -728,9 +759,9 @@ function renderLoan() {
       </summary>
       <div class="lc-body">
       <div class="lc-inputs">
-        <label>청약수량(주)<input data-k="qty" inputmode="numeric" value="${esc(p.qty)}" placeholder="예: 2000"></label>
-        <label>마통 사용액(원)<input data-k="loan" inputmode="numeric" value="${esc(p.loan)}" placeholder="비우면 증거금 전액"></label>
-        <label>비례경쟁률(:1)<input data-k="ratio" inputmode="decimal" value="${esc(p.ratio)}" placeholder="${s.prop_competition ? "" : "마감 후 공개"}"></label>
+        <label>청약수량(주)<input data-k="qty" data-num inputmode="numeric" value="${esc(fmtNum(p.qty))}" placeholder="예: 2000"></label>
+        <label>마통 사용액(원)<input data-k="loan" data-num inputmode="numeric" value="${esc(fmtNum(p.loan))}" placeholder="비우면 증거금 전액"></label>
+        <label>비례경쟁률(:1)<input data-k="ratio" data-num inputmode="decimal" value="${esc(fmtNum(p.ratio))}" placeholder="${s.prop_competition ? "" : "마감 후 공개"}"></label>
         <label>예상 상장 수익률(%)<input data-k="ret" inputmode="decimal" value="${esc(p.ret)}" placeholder="예: 80"></label>
       </div>
       <div class="lc-out">${loanOutHTML(s, c)}</div>
@@ -768,7 +799,7 @@ function syncAlloc() {
   const f = $("#formRec");
   const eq = f.alloc_equal.value.trim(), pr = f.alloc_prop.value.trim();
   const split = eq !== "" || pr !== "";
-  if (split) f.allocated_qty.value = (toNum(eq) || 0) + (toNum(pr) || 0);
+  if (split) f.allocated_qty.value = fmtNum((toNum(eq) || 0) + (toNum(pr) || 0));
   f.allocated_qty.readOnly = split;
   $("#allocHint").textContent = split ? "자동" : "";
   syncFee(false);
@@ -784,7 +815,7 @@ function openNewRecord(prefill = {}) {
   curId = null;
   const f = $("#formRec");
   f.reset();
-  for (const el of f.elements) if (el.name) el.value = prefill[el.name] ?? "";
+  for (const el of f.elements) if (el.name) setField(el, prefill[el.name]);
   $("#recTitle").textContent = "새 청약 기록";
   $("#recStatus").classList.add("hidden");
   $("#salesSection").classList.add("hidden");
@@ -804,7 +835,7 @@ function openRecord(id) {
   if (!r) return;
   curId = id;
   const f = $("#formRec");
-  for (const el of f.elements) if (el.name) el.value = r[el.name] ?? "";
+  for (const el of f.elements) if (el.name) setField(el, r[el.name]);
   $("#recStatus").classList.remove("hidden");
   $("#salesSection").classList.remove("hidden");
   $("#btnDelRec").classList.remove("hidden");
@@ -824,7 +855,7 @@ function openRecord(id) {
   const k = calc(r);
   sf.sell_date.value = r.listing_date && r.listing_date <= todayISO() && !k.sold ? r.listing_date : todayISO();
   const rem = (+r.allocated_qty || 0) - k.sold;
-  if (rem > 0) sf.qty.value = rem;
+  if (rem > 0) sf.qty.value = fmtNum(rem);
   if (!$("#dlgRec").open) $("#dlgRec").showModal();
 }
 
@@ -858,7 +889,10 @@ function formValues(form) {
   for (const el of form.elements) {
     if (!el.name) continue;
     let v = el.value.trim();
-    if (el.hasAttribute("data-num")) v = v === "" ? null : Number(v.replace(/,/g, ""));
+    if (el.hasAttribute("data-num")) {
+      v = v === "" ? null : Number(v.replace(/,/g, ""));
+      if (v != null && UNIT_MULT[el.name]) v = v / UNIT_MULT[el.name]; // 화면(원) → 저장 단위
+    }
     else if (v === "") v = null;
     out[el.name] = v;
   }
