@@ -179,6 +179,9 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .fee-wrap input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--surface); color: var(--text); width: 100%; min-width: 0; }
 .fee-wrap input[readonly] { border-color: transparent; background: transparent; font-weight: 600; }
 .fee-wrap .fee-amt { text-align: right; max-width: 110px; }
+.fee-wrap td:first-child { display: flex; align-items: center; gap: 6px; }
+.fee-tag { flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.fee-tag.ok { background: var(--accent-soft); color: var(--accent); }
 .empty { text-align: center; color: var(--muted); padding: 40px 0 20px; }
 
 /* 통계 */
