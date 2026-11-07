@@ -265,7 +265,8 @@ function calc(r) {
   const interest = appSettings().deductLoan ? loanInterest(r) : 0;
   const fees = sales.reduce((a, s) => a + (+s.fee || 0), 0) + (+r.sub_fee || 0) + interest;
   const cost = sold * (+r.offer_price || 0);
-  const profit = (sold ? proceeds - cost : 0) - fees;
+  // 매도한 기록만 손익 계산 (상장대기·배정대기·보유중은 null)
+  const profit = sold ? proceeds - cost - fees : null;
   const firstSell = sales.map((s) => s.sell_date).filter(Boolean).sort()[0] || null;
   return { sold, proceeds, fees, interest, cost, profit, ret: cost ? profit / cost : null, firstSell, avgSell: sold ? proceeds / sold : null };
 }
@@ -506,7 +507,7 @@ function renderRecords() {
       <td class="r">${won(r.offer_price)}</td>
       <td class="r">${allocText(r)}</td>
       <td class="r">${k.sold ? `${won(k.sold)}주 @${won(k.avgSell)}` : "-"}</td>
-      <td class="r ${cls(k.profit)}"><b>${k.sold || k.fees ? signWon(k.profit) : "-"}</b></td>
+      <td class="r ${cls(k.profit)}"><b>${k.sold ? signWon(k.profit) : "-"}</b></td>
       <td class="r ${cls(k.ret)}">${k.sold ? pct(k.ret) : "-"}</td>
     </tr>`;
   }).join("");
@@ -845,7 +846,7 @@ function renderSales() {
   $("#recSummary").innerHTML = `
     <div><div class="l">배정${r.alloc_equal || r.alloc_prop ? ` (균등 ${won(r.alloc_equal || 0)} · 비례 ${won(r.alloc_prop || 0)})` : ""} / 남은 수량</div><div class="v">${hasAlloc ? won(r.allocated_qty) + "주" : "-"} / ${hasAlloc ? won(+r.allocated_qty - k.sold) + "주" : "-"}</div></div>
     <div><div class="l">평균 매도가</div><div class="v">${k.avgSell ? won(k.avgSell) + "원" : "-"}</div></div>
-    <div><div class="l">실현손익</div><div class="v ${cls(k.profit)}">${signWon(k.profit)}원</div></div>
+    <div><div class="l">실현손익</div><div class="v ${cls(k.profit)}">${k.sold ? signWon(k.profit) + "원" : "매도 후 계산"}</div></div>
     <div><div class="l">수익률</div><div class="v ${cls(k.ret)}">${pct(k.ret)}</div></div>`;
 }
 
@@ -876,7 +877,7 @@ function renderStats() {
 
   const inYear = all.filter((x) => S.statYear === "all" || (x.date || "").startsWith(S.statYear));
   const sold = inYear.filter((x) => x.k.sold > 0);
-  const totalProfit = inYear.reduce((a, x) => a + x.k.profit, 0);
+  const totalProfit = sold.reduce((a, x) => a + x.k.profit, 0);
   const totalCost = sold.reduce((a, x) => a + x.k.cost, 0);
   const allocated = inYear.filter((x) => !(x.r.allocated_qty == null || x.r.allocated_qty === ""));
   const gotShares = allocated.filter((x) => +x.r.allocated_qty > 0);
@@ -893,7 +894,7 @@ function renderStats() {
 
   const per = {};
   for (const x of inYear) {
-    if (!x.date || (!x.k.sold && !x.k.fees)) continue;
+    if (!x.date || !x.k.sold) continue;
     const key = periodKey(x.date, S.statPeriod);
     (per[key] ||= { profit: 0, n: 0 }).profit += x.k.profit;
     per[key].n++;
@@ -920,7 +921,7 @@ function renderStats() {
     o.n++;
     if (+x.r.allocated_qty > 0) { o.allocN++; o.alloc += +x.r.allocated_qty; }
     o.cost += x.k.cost;
-    o.profit += x.k.profit;
+    if (x.k.sold) o.profit += x.k.profit;
   }
   const bl = Object.entries(br).sort((a, b) => b[1].profit - a[1].profit);
   const bMax = Math.max(0.0001, ...bl.map(([, o]) => Math.abs(o.cost ? o.profit / o.cost : 0)));
@@ -930,7 +931,7 @@ function renderStats() {
         const ret = o.cost ? o.profit / o.cost : null;
         const w = ret == null ? 0 : (Math.abs(ret) / bMax) * 100;
         return `<tr><td><b>${esc(b)}</b></td><td class="r">${o.n} / ${o.allocN}</td><td class="r">${won(o.alloc)}</td>
-          <td class="r ${cls(o.profit)}">${signWon(o.profit)}</td><td class="r ${cls(ret)}"><b>${pct(ret)}</b></td>
+          <td class="r ${cls(o.profit)}">${o.cost ? signWon(o.profit) : "-"}</td><td class="r ${cls(ret)}"><b>${pct(ret)}</b></td>
           <td><div class="hbar"><i style="left:0;width:${w}%;background:var(--${ret < 0 ? "down" : "up"})"></i></div></td></tr>`;
       }).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">기록이 없어요.</td></tr></tbody>`;
