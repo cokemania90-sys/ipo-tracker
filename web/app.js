@@ -349,10 +349,8 @@ function calendarEvents() {
   for (const r of S.records) for (const s of r.sales || []) {
     add(withdrawDate(s), "cash", `${r.name} ${won(saleCash(s))}원`, { rec: r.id }, true, isTransferred(s));
   }
-  const addSub = (s, e, name, ref, mine) => {
-    if (!s || !e) return;
-    for (let d = parseISO(s); iso(d) <= e; d.setDate(d.getDate() + 1)) if (d.getDay() % 6 !== 0) add(iso(d), "sub", name, ref, mine);
-  };
+  // 청약은 기간(보통 이틀) 중 마지막 날(마감일)에만 한 번 표시
+  const addSub = (s, e, name, ref, mine) => { if (e || s) add(e || s, "sub", name, ref, mine); };
   for (const s of S.schedule) {
     const rec = myRecordFor(s);
     if (rec) seen.add(rec.id);
