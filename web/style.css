@@ -273,6 +273,7 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .bar.up { background: var(--up); }
 .bar.down { background: var(--down); border-radius: 0 0 4px 4px; }
 .bar-col .val { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; height: 16px; }
+.bar-col .rr { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; height: 14px; white-space: nowrap; opacity: .85; }
 .bar-col .lab { font-size: 11px; color: var(--muted); margin-top: 4px; white-space: nowrap; }
 .bar-chart .empty { flex: 1; align-self: center; }
 

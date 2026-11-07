@@ -899,8 +899,10 @@ function renderStats() {
   for (const x of inYear) {
     if (!x.date || !x.k.sold) continue;
     const key = periodKey(x.date, S.statPeriod);
-    (per[key] ||= { profit: 0, n: 0 }).profit += x.k.profit;
-    per[key].n++;
+    const o = (per[key] ||= { profit: 0, cost: 0, n: 0 });
+    o.profit += x.k.profit;
+    o.cost += x.k.cost;
+    o.n++;
   }
   const keys = Object.keys(per).sort();
   const maxAbs = Math.max(1, ...keys.map((k) => Math.abs(per[k].profit)));
@@ -909,7 +911,9 @@ function renderStats() {
     ? keys.map((k) => {
         const v = per[k].profit, h = (Math.abs(v) / maxAbs) * 100;
         const short = Math.abs(v) >= 10000 ? (v / 10000).toFixed(Math.abs(v) >= 1e6 ? 0 : 1) + "만" : won(v);
-        return `<div class="bar-col" title="${k}: ${signWon(v)}원 (${per[k].n}종목)">
+        const rr = per[k].cost ? v / per[k].cost : null;
+        return `<div class="bar-col" title="${k}: ${signWon(v)}원 · 수익률 ${pct(rr)} (${per[k].n}종목)">
+          <div class="rr ${cls(rr)}">${rr == null ? "" : pct(rr, 1)}</div>
           <div class="val ${cls(v)}">${short}</div>
           <div class="bar-area"><div class="pos">${v > 0 ? `<div class="bar up" style="height:${h}%"></div>` : ""}</div>
           ${anyNeg ? `<div class="neg">${v < 0 ? `<div class="bar down" style="height:${h}%"></div>` : ""}</div>` : ""}</div>
