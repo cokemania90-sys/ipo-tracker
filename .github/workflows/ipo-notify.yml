@@ -26,8 +26,8 @@ jobs:
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           RECORDS_TOKEN: ${{ secrets.RECORDS_TOKEN }}
-          RECORDS_REPO: cokemania90-sys/claud1
+          RECORDS_REPO: humptys/claud1
           RECORDS_PATH: ipo-tracker/records.json
-          APP_URL: https://cokemania90-sys.github.io/ipo-tracker/
+          APP_URL: https://humptys.github.io/ipo-tracker/
           TEST: ${{ inputs.test && '1' || '' }}
         run: python scripts/notify.py

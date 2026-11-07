@@ -3,7 +3,7 @@
 
 환경변수
   NTFY_TOPIC    (필수) ntfy 앱에서 구독할 주제 이름. 남이 추측 못 하게 길고 랜덤하게.
-  RECORDS_REPO  기록이 저장된 (비공개) 저장소. 예: cokemania90-sys/claud1
+  RECORDS_REPO  기록이 저장된 (비공개) 저장소. 예: humptys/claud1
   RECORDS_PATH  저장소 안의 기록 파일 경로 (기본 ipo-tracker/records.json)
   RECORDS_TOKEN 그 저장소를 읽을 수 있는 토큰 (Contents: Read)
   APP_URL       (선택) 알림을 눌렀을 때 열 주소 (GitHub Pages 주소)

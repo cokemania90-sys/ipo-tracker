@@ -2,7 +2,7 @@
 
 공모주 일정을 캘린더로 보고, 청약한 종목의 배정·매도·수익률을 증권사별·기간별로 정리하는 웹앱입니다.
 
-- **앱 주소**: https://cokemania90-sys.github.io/ipo-tracker/
+- **앱 주소**: https://humptys.github.io/ipo-tracker/
 - **공모주 일정**: GitHub Actions가 6시간마다 [38커뮤니케이션](https://www.38.co.kr/html/fund/)에서 가져와 `web/data/schedule.json`에 저장합니다.
 - **내 기록**: 비공개 저장소 `claud1`의 `ipo-tracker/records.json`에 저장합니다. 앱의 ⚙ 설정에 토큰을 한 번 넣으면 핸드폰·PC에서 같은 기록을 봅니다.
 - **상장일 알림**: 매일 08:30(KST)에 [ntfy](https://ntfy.sh) 앱으로 푸시를 보냅니다.
