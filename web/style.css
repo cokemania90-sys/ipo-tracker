@@ -172,6 +172,9 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
   :root:not([data-theme="light"]) .badge.s-need, :root:not([data-theme="light"]) .badge.s-hold { background: #3a2f12; color: #ffc04d; }
   :root:not([data-theme="light"]) .badge.s-done { background: #163222; color: #5fd08f; }
 }
+:root[data-theme="dark"] .badge.s-need, :root[data-theme="dark"] .badge.s-hold { background: #3a2f12; color: #ffc04d; }
+:root[data-theme="dark"] .badge.s-done { background: #163222; color: #5fd08f; }
+#btnTheme { font-size: 16px; }
 .empty { text-align: center; color: var(--muted); padding: 40px 0 20px; }
 
 /* 통계 */

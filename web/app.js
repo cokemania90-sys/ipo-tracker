@@ -830,7 +830,7 @@ function bind() {
         curId = r.id;
         toast(r.created ? `${r.name} 청약 기록을 추가했어요` : `${r.name} 기존 기록에 합쳤어요`);
       }
-      openRecord(curId);
+      $("#dlgRec").close();
     } catch (e) { toast(e.message); }
     btn.disabled = false;
   };
@@ -870,6 +870,24 @@ function bind() {
     $$("#statPeriod button").forEach((x) => x.classList.toggle("on", x === b));
     renderStats();
   }));
+
+  // 라이트/다크 모드: 처음엔 기기 설정을 따르고, 버튼을 누르면 선택한 모드로 고정
+  const isDark = () => {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  const paintThemeBtn = () => {
+    $("#btnTheme").textContent = isDark() ? "☀" : "🌙";
+    $("#btnTheme").title = isDark() ? "라이트 모드로" : "다크 모드로";
+    document.querySelector('meta[name="theme-color"]').content = isDark() ? "#171a20" : "#3b5bdb";
+  };
+  $("#btnTheme").onclick = () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    ls.set("theme", next);
+    paintThemeBtn();
+  };
+  paintThemeBtn();
 
   $("#btnSettings").onclick = openSettings;
   $("#formSettings").onsubmit = saveSettings;

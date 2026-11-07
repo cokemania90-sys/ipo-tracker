@@ -8,6 +8,10 @@
 <meta name="theme-color" content="#3b5bdb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="style.css">
+<script>
+  // 저장된 테마를 화면 그리기 전에 적용 (깜빡임 방지)
+  try { var t = localStorage.getItem("theme"); if (t === '"light"' || t === '"dark"') document.documentElement.dataset.theme = JSON.parse(t); } catch (e) {}
+</script>
 </head>
 <body>
 <header class="top">
@@ -21,6 +25,7 @@
     <button role="tab" data-tab="stats">수익 통계</button>
   </nav>
   <div class="top-actions">
+    <button id="btnTheme" class="ghost icon" title="라이트/다크 모드" aria-label="라이트/다크 모드 전환"></button>
     <button id="btnSettings" class="ghost icon" title="GitHub 연결 설정" aria-label="설정">⚙</button>
     <button id="btnAdd" class="primary">+ 청약 기록</button>
   </div>
