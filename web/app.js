@@ -963,8 +963,11 @@ function renderEntry(sold) {
   for (const p of pts) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; syy += (p.y - my) ** 2; }
   const rCoef = sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
   const slope = sxx ? sxy / sxx : 0, icpt = my - slope * mx;
-  const strength = rCoef == null ? "" : Math.abs(rCoef) >= 0.7 ? "강한" : Math.abs(rCoef) >= 0.4 ? "뚜렷한" : Math.abs(rCoef) >= 0.2 ? "약한" : "거의 없는";
-  corr.textContent = rCoef == null ? "" : `· 상관계수 ${rCoef.toFixed(2)} (${strength} ${rCoef >= 0 ? "양의" : "음의"} 관계, ${n}건)`;
+  // 진입가능척도는 낮을수록 좋음 → 음(-)의 상관이면 '척도가 낮을수록 수익률이 높다'
+  const a = rCoef == null ? 0 : Math.abs(rCoef);
+  const strength = a >= 0.7 ? "뚜렷하게" : a >= 0.4 ? "어느 정도" : a >= 0.2 ? "약하게" : "";
+  const trendTxt = rCoef == null ? "" : a < 0.2 ? "척도와 수익률 관계가 거의 없음" : `척도가 낮을수록 수익률이 ${strength} ${rCoef < 0 ? "높음" : "낮음"}`;
+  corr.textContent = rCoef == null ? "" : `· 상관계수 ${rCoef.toFixed(2)} · ${trendTxt} (${n}건)`;
 
   // 산점도 (SVG)
   const W = 600, H = 280, L = 48, R = 14, T = 14, B = 34;
@@ -972,13 +975,13 @@ function renderEntry(sold) {
   let y0 = Math.min(0, ...pts.map((p) => p.y)), y1 = Math.max(0, ...pts.map((p) => p.y));
   const padX = (x1 - x0 || 1) * 0.08, padY = (y1 - y0 || 1) * 0.1;
   x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
-  const sx = (v) => L + ((v - x0) / (x1 - x0)) * (W - L - R);
+  const sx = (v) => L + ((x1 - v) / (x1 - x0)) * (W - L - R); // X축 반전: 오른쪽일수록 척도 낮음(좋음)
   const sy = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const ticks = (a, b, k) => Array.from({ length: k + 1 }, (_, i) => a + ((b - a) * i) / k);
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="진입가능척도 대비 수익률 산점도">`;
   for (const v of ticks(y0, y1, 4)) svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${L - 6}" y="${sy(v) + 4}" text-anchor="end">${Math.round(v)}%</text>`;
-  for (const v of ticks(x0, x1, 4)) svg += `<text x="${sx(v)}" y="${H - B + 16}" text-anchor="middle">${Math.round(v)}</text>`;
-  svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">진입가능척도</text>`;
+  for (const v of ticks(x1, x0, 4)) svg += `<text x="${sx(v)}" y="${H - B + 16}" text-anchor="middle">${Math.round(v)}</text>`;
+  svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">진입가능척도 (← 높음 · 낮을수록 좋음 →)</text>`;
   if (y0 < 0 && y1 > 0) svg += `<line class="zero" x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}"/>`;
   svg += `<line class="trend" x1="${sx(x0)}" y1="${sy(icpt + slope * x0)}" x2="${sx(x1)}" y2="${sy(icpt + slope * x1)}"/>`;
   for (const p of pts) svg += `<circle class="${p.y >= 0 ? "up" : "down"}" cx="${sx(p.x)}" cy="${sy(p.y)}" r="5" data-rec="${esc(p.r.id)}"><title>${esc(p.r.name)} · 척도 ${p.x} · 수익률 ${p.y >= 0 ? "+" : ""}${p.y.toFixed(1)}%</title></circle>`;
