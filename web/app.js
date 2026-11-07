@@ -947,10 +947,17 @@ function renderStats() {
 }
 
 /* ============================================================ 통계: 진입가능척도 대비 수익률 */
+const ALLOC_LABEL = { both: "비례+균등", equal: "균등만", none: "구분 없음" };
+/** 배정 구분: 비례 1주 이상 → both, 균등만 → equal, 균등/비례 미입력 → none */
+function allocKind(r) {
+  if (+r.alloc_prop > 0) return "both";
+  if (+r.alloc_equal > 0) return "equal";
+  return "none";
+}
 function renderEntry(sold) {
   const pts = sold
     .filter((x) => x.r.entry_score != null && x.r.entry_score !== "" && isFinite(+x.r.entry_score) && x.k.ret != null)
-    .map((x) => ({ x: +x.r.entry_score, y: x.k.ret * 100, r: x.r }));
+    .map((x) => ({ x: +x.r.entry_score, y: x.k.ret * 100, r: x.r, kind: allocKind(x.r) }));
   const chart = $("#entryChart"), table = $("#entryTable"), corr = $("#entryCorr");
   if (pts.length < 2) {
     chart.innerHTML = `<p class="empty">매도한 종목 중 진입가능척도가 기록된 게 ${pts.length}건이에요. 2건 이상이면 그래프가 나와요.<br><small>청약 메시지의 '*진입가능척도'가 자동으로 기록되고, 기록 편집에서 직접 넣을 수도 있어요.</small></p>`;
@@ -984,8 +991,10 @@ function renderEntry(sold) {
   svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">진입가능척도 (← 높음 · 낮을수록 좋음 →)</text>`;
   if (y0 < 0 && y1 > 0) svg += `<line class="zero" x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}"/>`;
   svg += `<line class="trend" x1="${sx(x0)}" y1="${sy(icpt + slope * x0)}" x2="${sx(x1)}" y2="${sy(icpt + slope * x1)}"/>`;
-  for (const p of pts) svg += `<circle class="${p.y >= 0 ? "up" : "down"}" cx="${sx(p.x)}" cy="${sy(p.y)}" r="5" data-rec="${esc(p.r.id)}"><title>${esc(p.r.name)} · 척도 ${p.x} · 수익률 ${p.y >= 0 ? "+" : ""}${p.y.toFixed(1)}%</title></circle>`;
-  chart.innerHTML = svg + `</svg>`;
+  for (const p of pts) svg += `<circle class="k-${p.kind}" cx="${sx(p.x)}" cy="${sy(p.y)}" r="5.5" data-rec="${esc(p.r.id)}"><title>${esc(p.r.name)} · ${ALLOC_LABEL[p.kind]} · 척도 ${p.x} · 수익률 ${p.y >= 0 ? "+" : ""}${p.y.toFixed(1)}%</title></circle>`;
+  const present = ["both", "equal", "none"].filter((k) => pts.some((p) => p.kind === k));
+  const legend = `<div class="entry-legend">${present.map((k) => `<span><i class="k-${k}"></i>${ALLOC_LABEL[k]} ${pts.filter((p) => p.kind === k).length}</span>`).join("")}</div>`;
+  chart.innerHTML = legend + svg + `</svg>`;
 
   // 구간별 (데이터 4분위로 나눔, 적으면 2~3구간)
   const sorted = pts.slice().sort((a, b) => a.x - b.x);
