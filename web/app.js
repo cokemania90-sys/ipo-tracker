@@ -211,7 +211,40 @@ const Actions = {
     }, `ipo: ${fields.name || ""} 매도 기록`),
   removeSale: (id, saleId) =>
     mutate((d) => { const r = d.records.find((x) => x.id === id); if (r) r.sales = (r.sales || []).filter((s) => s.id !== saleId); }, "ipo: 매도 기록 삭제"),
+  setTransferred: (id, saleId, val) =>
+    mutate((d) => {
+      const r = d.records.find((x) => x.id === id);
+      const s = r && (r.sales || []).find((x) => x.id === saleId);
+      if (s) s.transferred = val;
+    }, `ipo: 매도대금 이체 ${val ? "완료" : "취소"}`),
 };
+
+/* ============================================================ 출금 가능일 (매도일 D+2 영업일) */
+let HOLIDAYS = new Set();
+const isBizDay = (d) => d.getDay() !== 0 && d.getDay() !== 6 && !HOLIDAYS.has(iso(d));
+function addBizDays(s, n) {
+  const d = parseISO(s);
+  for (let k = 0; k < n; ) { d.setDate(d.getDate() + 1); if (isBizDay(d)) k++; }
+  return iso(d);
+}
+const withdrawDate = (s) => (s.sell_date ? addBizDays(s.sell_date, 2) : null);
+const saleCash = (s) => (+s.qty || 0) * (+s.price || 0) - (+s.fee || 0);
+// 이 기능 이전 매도분은 이미 이체했다고 보고 알림 제외 (기록에서 체크를 풀면 다시 알림)
+const TRANSFER_TRACK_FROM = "2026-11-07";
+function isTransferred(s) {
+  if (s.transferred != null) return !!s.transferred;
+  const w = withdrawDate(s);
+  return !!w && w < TRANSFER_TRACK_FROM;
+}
+/** 이체 안 한 매도대금: [{r, s, date, amt}] */
+function pendingCash() {
+  const out = [];
+  for (const r of S.records) for (const s of r.sales || []) {
+    const date = withdrawDate(s);
+    if (date && !isTransferred(s)) out.push({ r, s, date, amt: saleCash(s) });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 /* ============================================================ 계산 */
 function calc(r) {
@@ -256,6 +289,10 @@ function setRecords(data) {
 }
 
 async function loadSchedule() {
+  try {
+    const hj = await (await fetch(`data/holidays.json?t=${Date.now()}`, { cache: "no-store" })).json();
+    HOLIDAYS = new Set(hj.dates || []);
+  } catch (e) { /* 휴장일 목록이 없으면 주말만 제외 */ }
   try {
     const res = await fetch(`data/schedule.json?t=${Date.now()}`, { cache: "no-store" });
     const j = await res.json();
@@ -307,7 +344,11 @@ function calendarEvents() {
   const ev = [];
   const seen = new Set();
   const fMine = $("#fMine").checked;
-  const add = (date, kind, name, ref, mine) => { if (date) ev.push({ date, kind, name, ref, mine }); };
+  const add = (date, kind, name, ref, mine, done) => { if (date) ev.push({ date, kind, name, ref, mine, done }); };
+  // 매도대금 출금 가능일
+  for (const r of S.records) for (const s of r.sales || []) {
+    add(withdrawDate(s), "cash", `${r.name} ${won(saleCash(s))}원`, { rec: r.id }, true, isTransferred(s));
+  }
   const addSub = (s, e, name, ref, mine) => {
     if (!s || !e) return;
     for (let d = parseISO(s); iso(d) <= e; d.setDate(d.getDate() + 1)) if (d.getDay() % 6 !== 0) add(iso(d), "sub", name, ref, mine);
@@ -328,13 +369,17 @@ function calendarEvents() {
     add(r.listing_date, "list", r.name, ref, true);
     add(r.refund_date, "refund", r.name, ref, true);
   }
-  const on = { sub: $("#fSub").checked, list: $("#fList").checked, refund: $("#fRefund").checked };
-  const order = { list: 0, sub: 1, refund: 2 };
+  const on = { sub: $("#fSub").checked, list: $("#fList").checked, refund: $("#fRefund").checked, cash: $("#fCash").checked };
+  const order = { cash: 0, list: 1, sub: 2, refund: 3 };
   return ev.filter((e) => on[e.kind]).sort((a, b) => (b.mine - a.mine) || (order[a.kind] - order[b.kind]) || a.name.localeCompare(b.name));
 }
 
-const LABEL = { sub: "청약", list: "상장", refund: "환불" };
-const evBtn = (e) => `<button class="ev ${e.kind}${e.mine ? " mine" : ""}" data-ref='${esc(JSON.stringify(e.ref))}' title="${LABEL[e.kind]} · ${esc(e.name)}">${e.mine ? "★ " : ""}${LABEL[e.kind]} ${esc(e.name)}</button>`;
+const LABEL = { sub: "청약", list: "상장", refund: "환불", cash: "💰출금" };
+const evBtn = (e) => {
+  const star = e.mine && e.kind !== "cash" ? "★ " : "";
+  const tip = `${LABEL[e.kind]} · ${e.name}${e.kind === "cash" ? (e.done ? " (이체 완료)" : " (이체 전)") : ""}`;
+  return `<button class="ev ${e.kind}${e.mine ? " mine" : ""}${e.done ? " done" : ""}" data-ref='${esc(JSON.stringify(e.ref))}' title="${esc(tip)}">${star}${LABEL[e.kind]} ${esc(e.name)}</button>`;
+};
 
 function renderCalendar() {
   const m = S.month;
@@ -369,6 +414,8 @@ function renderSide() {
     push(r.refund_date, "refund", "환불");
     push(r.listing_date, "list", "상장");
   }
+  // 이체 안 한 매도대금은 날짜가 지났어도 계속 표시
+  for (const p of pendingCash()) items.push({ date: p.date, kind: "cash", label: `${p.date <= t ? "출금 가능" : "출금 예정"} ${won(p.amt)}원`, r: p.r });
   items.sort((a, b) => a.date.localeCompare(b.date));
   $("#upcoming").innerHTML = items.slice(0, 8).map((i) =>
     `<li data-rec="${esc(i.r.id)}"><span class="dd ${i.kind}">${dday(i.date)}</span><span class="t"><b>${esc(i.r.name)}</b><span>${i.label} · ${md(i.date)} · ${esc(i.r.broker || "")}</span></span></li>`
@@ -662,12 +709,15 @@ function renderSales() {
   if (!r) return;
   const k = calc(r);
   $("#salesTable").innerHTML = r.sales.length
-    ? `<thead><tr><th>매도일</th><th class="r">수량</th><th class="r">매도가</th><th class="r">공모가 대비</th><th class="r">수수료·세금</th><th class="r">손익</th><th></th></tr></thead><tbody>` +
+    ? `<thead><tr><th>매도일</th><th class="r">수량</th><th class="r">매도가</th><th class="r">공모가 대비</th><th class="r">수수료·세금</th><th class="r">손익</th><th>출금 가능일</th><th>이체</th><th></th></tr></thead><tbody>` +
       r.sales.map((s) => {
         const p = s.qty * (s.price - (r.offer_price || 0)) - (s.fee || 0);
         const d = r.offer_price ? (s.price - r.offer_price) / r.offer_price : null;
+        const w = withdrawDate(s), done = isTransferred(s);
         return `<tr><td>${s.sell_date || "-"}</td><td class="r">${won(s.qty)}</td><td class="r">${won(s.price)}</td>
           <td class="r ${cls(d)}">${pct(d)}</td><td class="r">${won(s.fee)}</td><td class="r ${cls(p)}"><b>${signWon(p)}</b></td>
+          <td>${w ? `${md(w)} <small class="muted">${won(saleCash(s))}원</small>` : "-"}</td>
+          <td><label class="xfer"><input type="checkbox" data-xfer="${esc(s.id)}" ${done ? "checked" : ""}> ${done ? "완료" : "전"}</label></td>
           <td class="r"><button class="x-del" data-sale="${esc(s.id)}" aria-label="삭제">✕</button></td></tr>`;
       }).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">아직 매도 기록이 없어요.</td></tr></tbody>`;
@@ -785,6 +835,10 @@ function renderAlerts() {
     if (r.sub_end === t) msgs.push({ r, html: `오늘 <b>${esc(r.name)}</b> 청약 마감` });
     if (r.refund_date === t) msgs.push({ r, html: `오늘 <b>${esc(r.name)}</b> 환불일 — 배정 수량 입력` });
   }
+  for (const p of pendingCash()) {
+    if (p.date > t) continue;
+    msgs.unshift({ r: p.r, html: `💰 <b>${esc(p.r.name)}</b> 매도대금 ${won(p.amt)}원 출금 가능${p.r.broker ? ` (${esc(p.r.broker)})` : ""} — 이체했으면 체크` });
+  }
   const bar = $("#alertBar");
   bar.innerHTML = msgs.map((m) => `<button class="chip-btn" data-rec="${esc(m.r.id)}">${m.html}</button>`).join("");
   bar.classList.toggle("hidden", !msgs.length);
@@ -885,7 +939,20 @@ function bind() {
     if (Math.abs(dx) > 60) shift(dx < 0 ? 1 : -1);
     sx = null;
   });
-  for (const id of ["fSub", "fList", "fRefund", "fMine"]) {
+  // 매도 기록의 '이체' 체크
+  $("#salesTable").addEventListener("change", async (e) => {
+    const cb = e.target.closest("[data-xfer]");
+    if (!cb) return;
+    cb.disabled = true;
+    try {
+      await Actions.setTransferred(curId, cb.dataset.xfer, cb.checked);
+      renderSales();
+      toast(cb.checked ? "이체 완료로 표시했어요" : "이체 전으로 되돌렸어요");
+    } catch (err) { cb.checked = !cb.checked; toast(err.message); }
+    cb.disabled = false;
+  });
+
+  for (const id of ["fSub", "fList", "fRefund", "fCash", "fMine"]) {
     const el = $("#" + id);
     el.checked = ls.get("cal:" + id, el.checked);
     el.onchange = () => { ls.set("cal:" + id, el.checked); renderCalendar(); };

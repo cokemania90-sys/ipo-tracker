@@ -179,6 +179,16 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .fee-wrap input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--surface); color: var(--text); width: 100%; min-width: 0; }
 .fee-wrap input[readonly] { border-color: transparent; background: transparent; font-weight: 600; }
 .fee-wrap .fee-amt { text-align: right; max-width: 110px; }
+/* 매도대금 출금 */
+.dot.cash { background: #12a150; }
+.ev.cash { background: #e3f6ea; color: #0f7a3d; box-shadow: none; }
+.ev.cash.done { opacity: .55; text-decoration: line-through; }
+.upcoming .dd.cash { background: #e3f6ea; color: #0f7a3d; }
+.xfer { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ev.cash, :root:not([data-theme="light"]) .upcoming .dd.cash { background: #143323; color: #5fd08f; }
+}
+:root[data-theme="dark"] .ev.cash, :root[data-theme="dark"] .upcoming .dd.cash { background: #143323; color: #5fd08f; }
 .fee-wrap td:first-child { display: flex; align-items: center; gap: 6px; }
 .fee-tag { flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
 .fee-tag.ok { background: var(--accent-soft); color: var(--accent); }

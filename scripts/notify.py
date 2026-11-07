@@ -117,8 +117,62 @@ def main():
     lines += ["오늘 청약 마감: %s (%s)" % (r["name"], r.get("broker") or "-") for r in sub_end]
     if lines:
         send("📅 공모주 일정 알림", "\n".join(lines), tags="calendar", priority=3)
-    if not (listing or lines):
+
+    # 매도대금 출금 가능 (매도일 D+2 영업일) — 앱에서 '이체 완료' 체크할 때까지 매일 알림
+    cash = []
+    for r in recs:
+        for s in r.get("sales") or []:
+            w = withdraw_date(s.get("sell_date"))
+            if not w or w > t or is_transferred(s, w):
+                continue
+            amt = int(s.get("qty") or 0) * float(s.get("price") or 0) - float(s.get("fee") or 0)
+            late = "" if w == t else " (%s부터)" % w[5:].replace("-", "/")
+            cash.append("%s %s원 · %s%s" % (r["name"], won(amt), r.get("broker") or "-", late))
+    if cash:
+        send("💰 매도대금 출금 가능 %d건" % len(cash),
+             "\n".join(cash) + "\n증권사 계좌에서 내 계좌로 이체하고, 앱에서 '이체 완료'를 체크하세요.",
+             tags="moneybag", priority=4)
+    if not (listing or lines or cash):
         print("오늘(%s) 알림 없음" % t)
+
+
+# ---------------------------------------------------------------- 출금 가능일
+HOLIDAYS_PATH = os.path.join(ROOT, "web", "data", "holidays.json")
+TRANSFER_TRACK_FROM = "2026-11-07"  # 이 날짜 이전 출금분은 이미 이체한 것으로 간주 (앱과 동일)
+
+
+def _holidays():
+    try:
+        with open(HOLIDAYS_PATH, encoding="utf-8") as f:
+            return set(json.load(f).get("dates", []))
+    except OSError:
+        return set()
+
+
+_HOL = None
+
+
+def withdraw_date(sell_date, n=2):
+    """매도일 + n 영업일 (주말·KRX 휴장일 제외)"""
+    global _HOL
+    if not sell_date:
+        return None
+    if _HOL is None:
+        _HOL = _holidays()
+    from datetime import date as _d
+    d = _d.fromisoformat(sell_date)
+    k = 0
+    while k < n:
+        d += core.timedelta(days=1)
+        if d.weekday() < 5 and d.isoformat() not in _HOL:
+            k += 1
+    return d.isoformat()
+
+
+def is_transferred(s, w):
+    if s.get("transferred") is not None:
+        return bool(s["transferred"])
+    return w < TRANSFER_TRACK_FROM
 
 
 if __name__ == "__main__":
