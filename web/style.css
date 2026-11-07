@@ -259,8 +259,12 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .kpi .l { font-size: 12px; color: var(--muted); font-weight: 600; }
 .kpi .v { font-size: 22px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .kpi .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* minmax(0,…)·min-width:0 → 카드가 내용(막대·표) 때문에 화면보다 넓어지지 않게, 넘치는 내용은 카드 안에서 가로 스크롤 */
+.stats-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.stats-grid > .card { min-width: 0; overflow: hidden; }
 .stats-grid .card:first-child { grid-column: 1 / -1; }
+.stats-grid .table-wrap, .bar-chart { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+#tab-stats, #tab-records, #tab-loan, #tab-calendar { min-width: 0; max-width: 100%; }
 .note { font-size: 12px; margin-top: 14px; }
 
 .bar-chart { display: flex; align-items: stretch; gap: 6px; height: 240px; padding-top: 8px; overflow-x: auto; }
@@ -321,7 +325,7 @@ input.tiny { width: 48px; border: 1px solid var(--border); border-radius: 6px; p
 @media (max-width: 1000px) {
   .cal-layout { grid-template-columns: 1fr; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stats-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
   .top { flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
