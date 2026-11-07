@@ -221,6 +221,7 @@ textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; pa
 .grid-form label.hl { color: var(--accent); }
 .grid-form input, .sale-form input { border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; background: var(--surface); color: var(--text); font-weight: 400; font-size: 14px; min-width: 0; width: 100%; }
 .grid-form label.hl input { border-color: var(--accent); }
+.dep-hint { font-weight: 400; color: var(--accent); }
 .rec-title { display: flex; align-items: center; gap: 10px; }
 .sale-form { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr auto; gap: 8px; }
 input.tiny { width: 48px; border: 1px solid var(--border); border-radius: 6px; padding: 1px 4px; background: var(--surface); text-align: right; }

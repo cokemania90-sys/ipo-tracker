@@ -163,8 +163,10 @@
       <label>공모금액(백만원)<input name="offer_amount" inputmode="numeric" data-num></label>
       <label>진입가능척도<input name="entry_score" inputmode="decimal" data-num></label>
       <label>청약수량(주)<input name="applied_qty" inputmode="numeric" data-num></label>
-      <label>증거금(원)<input name="deposit" inputmode="numeric" data-num></label>
-      <label class="hl">배정수량(주)<input name="allocated_qty" inputmode="numeric" data-num></label>
+      <label>증거금(원) <span id="depHint" class="dep-hint"></span><input name="deposit" inputmode="numeric" data-num></label>
+      <label class="hl">균등 배정(주)<input name="alloc_equal" inputmode="numeric" data-num></label>
+      <label class="hl">비례 배정(주)<input name="alloc_prop" inputmode="numeric" data-num></label>
+      <label class="hl">배정 합계(주) <span id="allocHint" class="dep-hint"></span><input name="allocated_qty" inputmode="numeric" data-num></label>
       <label>청약수수료(원)<input name="sub_fee" inputmode="numeric" data-num></label>
       <label class="span2">메모<input name="memo"></label>
     </form>

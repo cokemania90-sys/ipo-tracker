@@ -444,7 +444,7 @@ function renderRecords() {
       <td>${r.sub_start ? `${md(r.sub_start)}~${md(r.sub_end)}` : "-"}</td>
       <td>${r.listing_date || "-"}</td>
       <td class="r">${won(r.offer_price)}</td>
-      <td class="r">${r.allocated_qty == null || r.allocated_qty === "" ? "-" : won(r.allocated_qty)}</td>
+      <td class="r">${allocText(r)}</td>
       <td class="r">${k.sold ? `${won(k.sold)}주 @${won(k.avgSell)}` : "-"}</td>
       <td class="r ${cls(k.profit)}"><b>${k.sold || r.sub_fee ? signWon(k.profit) : "-"}</b></td>
       <td class="r ${cls(k.ret)}">${k.sold ? pct(k.ret) : "-"}</td>
@@ -488,6 +488,50 @@ function autofillFromName() {
   msg.classList.remove("hidden");
 }
 
+/* ---------- 증거금 자동 계산: 청약수량 × 공모가(미확정이면 희망가 상단) × 증거금률(기본 50%) ---------- */
+function depositBasis() {
+  const f = $("#formRec");
+  const s = (f.schedule_no.value && S.schedule.find((x) => x.no === +f.schedule_no.value)) || findSchedule(f.name.value.trim());
+  let price = toNum(f.offer_price.value), priceNote = "";
+  if (!price && s && s.price_band) {
+    price = toNum(String(s.price_band).split("~").pop());
+    priceNote = "희망가 상단";
+  }
+  const rate = (s && s.deposit_rate) || 50;
+  return { price, rate, priceNote };
+}
+function calcDeposit() {
+  const f = $("#formRec");
+  const qty = toNum(f.applied_qty.value);
+  const { price, rate } = depositBasis();
+  return qty && price ? Math.round((qty * price * rate) / 100) : null;
+}
+/** 증거금 칸이 비었거나 자동 계산값이면 다시 계산 */
+function syncDeposit(initial) {
+  const f = $("#formRec");
+  const dep = f.deposit;
+  const calc = calcDeposit();
+  if (initial) dep.dataset.auto = dep.value === "" || (calc != null && toNum(dep.value) === calc) ? "1" : "0";
+  if (dep.dataset.auto === "1") dep.value = calc ?? "";
+  const { price, rate, priceNote } = depositBasis();
+  $("#depHint").textContent = dep.dataset.auto === "1" && price ? `자동 · ${rate}%${priceNote ? " · " + priceNote : ""}` : "";
+}
+
+/* ---------- 배정 합계 = 균등 + 비례 (둘 다 비어 있으면 합계를 직접 입력 가능) ---------- */
+function syncAlloc() {
+  const f = $("#formRec");
+  const eq = f.alloc_equal.value.trim(), pr = f.alloc_prop.value.trim();
+  const split = eq !== "" || pr !== "";
+  if (split) f.allocated_qty.value = (toNum(eq) || 0) + (toNum(pr) || 0);
+  f.allocated_qty.readOnly = split;
+  $("#allocHint").textContent = split ? "자동" : "";
+}
+const allocText = (r) => {
+  if (r.allocated_qty == null || r.allocated_qty === "") return "-";
+  const parts = [r.alloc_equal ? `균${r.alloc_equal}` : "", r.alloc_prop ? `비${r.alloc_prop}` : ""].filter(Boolean);
+  return won(r.allocated_qty) + (parts.length ? ` <small class="muted">(${parts.join("+")})</small>` : "");
+};
+
 /** 새 기록 입력 (수기 입력 / 캘린더에서 불러오기) */
 function openNewRecord(prefill = {}) {
   curId = null;
@@ -500,6 +544,8 @@ function openNewRecord(prefill = {}) {
   $("#btnDelRec").classList.add("hidden");
   $("#autofillMsg").classList.add("hidden");
   if (prefill.name) autofillFromName(); else setBrokerOptions(null);
+  syncDeposit(true);
+  syncAlloc();
   if (!$("#dlgRec").open) $("#dlgRec").showModal();
   (prefill.name ? f.broker : f.name).focus();
 }
@@ -515,6 +561,8 @@ function openRecord(id) {
   $("#btnDelRec").classList.remove("hidden");
   $("#autofillMsg").classList.add("hidden");
   setBrokerOptions(S.schedule.find((x) => x.no === r.schedule_no));
+  syncDeposit(true);
+  syncAlloc();
   $("#recTitle").textContent = r.name;
   const [label, c] = status(r);
   $("#recStatus").className = "badge " + c;
@@ -545,7 +593,7 @@ function renderSales() {
     : `<tbody><tr><td class="muted">아직 매도 기록이 없어요.</td></tr></tbody>`;
   const hasAlloc = !(r.allocated_qty == null || r.allocated_qty === "");
   $("#recSummary").innerHTML = `
-    <div><div class="l">배정 / 남은 수량</div><div class="v">${hasAlloc ? won(r.allocated_qty) + "주" : "-"} / ${hasAlloc ? won(+r.allocated_qty - k.sold) + "주" : "-"}</div></div>
+    <div><div class="l">배정${r.alloc_equal || r.alloc_prop ? ` (균등 ${won(r.alloc_equal || 0)} · 비례 ${won(r.alloc_prop || 0)})` : ""} / 남은 수량</div><div class="v">${hasAlloc ? won(r.allocated_qty) + "주" : "-"} / ${hasAlloc ? won(+r.allocated_qty - k.sold) + "주" : "-"}</div></div>
     <div><div class="l">평균 매도가</div><div class="v">${k.avgSell ? won(k.avgSell) + "원" : "-"}</div></div>
     <div><div class="l">실현손익</div><div class="v ${cls(k.profit)}">${signWon(k.profit)}원</div></div>
     <div><div class="l">수익률</div><div class="v ${cls(k.ret)}">${pct(k.ret)}</div></div>`;
@@ -786,7 +834,13 @@ function bind() {
     } catch (e) { toast(e.message); }
     btn.disabled = false;
   };
-  $("#formRec").name.addEventListener("change", autofillFromName);
+  $("#formRec").name.addEventListener("change", () => { autofillFromName(); syncDeposit(false); });
+  for (const n of ["applied_qty", "offer_price"]) $("#formRec")[n].addEventListener("input", () => syncDeposit(false));
+  for (const n of ["alloc_equal", "alloc_prop"]) $("#formRec")[n].addEventListener("input", syncAlloc);
+  $("#formRec").deposit.addEventListener("input", (e) => {
+    e.target.dataset.auto = e.target.value.trim() === "" ? "1" : "0"; // 직접 입력하면 자동 계산 중지, 지우면 다시 자동
+    syncDeposit(false);
+  });
   $("#btnManual").onclick = () => { $("#dlgAdd").close(); openNewRecord(); };
   $("#btnDelRec").onclick = async () => {
     const r = curRec();

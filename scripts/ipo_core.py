@@ -136,6 +136,7 @@ def parse_detail(h):
         market=rx(r"시장구분 (\S+)"),
         code=rx(r"종목코드 (\d{6})"),
         sub_limit=rx(r"청약 최고한도 : ([\d,~ ]+) 주"),
+        deposit_rate=to_num(rx(r"일반청약자 [\d,]+ 주 \([\d.]+%\) 청약증거금율 : (\d+(?:\.\d+)?) ?%")),
     )
 
 
