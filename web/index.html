@@ -172,7 +172,7 @@
       <label class="hl">균등 배정(주)<input name="alloc_equal" inputmode="numeric" data-num></label>
       <label class="hl">비례 배정(주)<input name="alloc_prop" inputmode="numeric" data-num></label>
       <label class="hl">배정 합계(주) <span id="allocHint" class="dep-hint"></span><input name="allocated_qty" inputmode="numeric" data-num></label>
-      <label>청약수수료(원)<input name="sub_fee" inputmode="numeric" data-num></label>
+      <label>청약수수료(원) <span id="feeHint" class="dep-hint"></span><input name="sub_fee" inputmode="numeric" data-num></label>
       <label class="span2">메모<input name="memo"></label>
     </form>
 
@@ -217,9 +217,25 @@
     <div id="settingsMsg" class="preview"></div>
     <div class="dlg-actions">
       <button type="button" class="danger ghost" id="btnDisconnect">연결 해제</button>
+      <button type="button" class="ghost" id="btnFees">증권사 수수료 표</button>
       <span class="grow"></span>
       <button type="button" class="ghost" data-close>취소</button>
       <button type="submit" class="primary">연결 테스트 후 저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 증권사별 청약수수료 표 -->
+<dialog id="dlgFees" class="dlg">
+  <form class="dlg-body" id="formFees">
+    <h2>증권사 청약수수료</h2>
+    <p class="muted small">배정을 1주 이상 받으면 이 금액이 청약수수료 칸에 자동으로 들어가요. 기본값은 일반 등급 기준 예상치라서, 내 등급·계좌에 맞게 고쳐 두세요 (예: 우대 등급이면 0). 표는 기록과 함께 저장돼서 핸드폰·PC에서 똑같이 보여요.</p>
+    <div class="table-wrap fee-wrap"><table class="mini"><tbody id="feeRows"></tbody></table></div>
+    <div class="dlg-actions">
+      <button type="button" class="ghost" id="btnFeeAdd">+ 증권사 추가</button>
+      <span class="grow"></span>
+      <button type="button" class="ghost" data-close>취소</button>
+      <button type="submit" class="primary">저장</button>
     </div>
   </form>
 </dialog>

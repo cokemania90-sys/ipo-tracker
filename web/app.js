@@ -517,6 +517,64 @@ function syncDeposit(initial) {
   $("#depHint").textContent = dep.dataset.auto === "1" && price ? `자동 · ${rate}%${priceNote ? " · " + priceNote : ""}` : "";
 }
 
+/* ---------- 증권사별 청약수수료 (배정 1주 이상일 때만 부과, 일반 등급 기준 기본값 · 설정에서 수정) ---------- */
+const DEFAULT_FEES = {
+  "한국투자증권": 2000, "NH투자증권": 2000, "KB증권": 1500, "미래에셋증권": 2000, "삼성증권": 2000,
+  "신한투자증권": 2000, "대신증권": 2000, "하나증권": 2000, "키움증권": 2000, "유진투자증권": 2000,
+  "유안타증권": 3000, "교보증권": 2000, "SK증권": 2000, "아이엠증권": 2000, "DB증권": 2000,
+  "IBK투자증권": 1500, "현대차증권": 1500, "신영증권": 2000, "상상인증권": 2000, "한화투자증권": 2000,
+  "메리츠증권": 2000, "LS증권": 2000, "BNK투자증권": 2000, "우리투자증권": 2000,
+};
+// 줄임말 -> 정식 이름 (앞부분 일치, 긴 것부터)
+const BROKER_ALIASES = [
+  ["한국투자", "한국투자증권"], ["한투", "한국투자증권"], ["nh", "NH투자증권"], ["나무", "NH투자증권"], ["kb", "KB증권"],
+  ["미래", "미래에셋증권"], ["삼성", "삼성증권"], ["신한", "신한투자증권"], ["대신", "대신증권"], ["크레온", "대신증권"],
+  ["하나", "하나증권"], ["키움", "키움증권"], ["유진", "유진투자증권"], ["유안타", "유안타증권"], ["교보", "교보증권"],
+  ["sk", "SK증권"], ["아이엠", "아이엠증권"], ["하이", "아이엠증권"], ["db", "DB증권"], ["ibk", "IBK투자증권"],
+  ["현대차", "현대차증권"], ["신영", "신영증권"], ["상상인", "상상인증권"], ["한화", "한화투자증권"], ["메리츠", "메리츠증권"],
+  ["ls", "LS증권"], ["이베스트", "LS증권"], ["bnk", "BNK투자증권"], ["우리", "우리투자증권"],
+].sort((a, b) => b[0].length - a[0].length);
+
+const feeTable = () => ({ ...DEFAULT_FEES, ...((rawRecords && rawRecords.fees) || {}) });
+function canonBroker(name) {
+  const raw = String(name || "").split(",")[0].trim();
+  if (!raw) return null;
+  const t = feeTable();
+  if (t[raw] != null) return raw;
+  const s = raw.replace(/\s+/g, "").toLowerCase();
+  for (const [alias, canon] of BROKER_ALIASES) if (s.startsWith(alias)) return canon;
+  // 직접 추가한 증권사: '토스' ↔ '토스증권'처럼 '증권/투자증권'을 뺀 이름으로 비교
+  const core = (x) => x.replace(/\s+/g, "").toLowerCase().replace(/(금융투자|투자증권|증권)$/, "");
+  const sc = core(raw);
+  for (const key of Object.keys(t)) {
+    const kc = core(key);
+    if (kc && sc.length >= 2 && (sc === kc || sc.startsWith(kc) || kc.startsWith(sc))) return key;
+  }
+  return raw;
+}
+function feeFor(broker) {
+  const c = canonBroker(broker);
+  const t = feeTable();
+  return c && t[c] != null ? +t[c] : null;
+}
+/** 청약수수료 칸이 비었거나 자동값이면: 배정 1주 이상 → 증권사 수수료, 0주 → 0 */
+function syncFee(initial) {
+  const f = $("#formRec");
+  const el = f.sub_fee;
+  const allocRaw = f.allocated_qty.value.trim();
+  const alloc = toNum(allocRaw);
+  const fee = allocRaw === "" ? null : alloc > 0 ? feeFor(f.broker.value) : 0;
+  if (initial) el.dataset.auto = el.value === "" || (fee != null && toNum(el.value) === fee) ? "1" : "0";
+  if (el.dataset.auto === "1") el.value = fee ?? "";
+  let hint = "";
+  if (el.dataset.auto === "1") {
+    if (allocRaw === "") hint = "배정 입력 시 자동";
+    else if (alloc > 0 && fee == null) hint = "표에 없는 증권사";
+    else hint = alloc > 0 ? `자동 · ${canonBroker(f.broker.value)}` : "미배정 · 0원";
+  }
+  $("#feeHint").textContent = hint;
+}
+
 /* ---------- 배정 합계 = 균등 + 비례 (둘 다 비어 있으면 합계를 직접 입력 가능) ---------- */
 function syncAlloc() {
   const f = $("#formRec");
@@ -525,6 +583,7 @@ function syncAlloc() {
   if (split) f.allocated_qty.value = (toNum(eq) || 0) + (toNum(pr) || 0);
   f.allocated_qty.readOnly = split;
   $("#allocHint").textContent = split ? "자동" : "";
+  syncFee(false);
 }
 const allocText = (r) => {
   if (r.allocated_qty == null || r.allocated_qty === "") return "-";
@@ -545,6 +604,7 @@ function openNewRecord(prefill = {}) {
   $("#autofillMsg").classList.add("hidden");
   if (prefill.name) autofillFromName(); else setBrokerOptions(null);
   syncDeposit(true);
+  syncFee(true);
   syncAlloc();
   if (!$("#dlgRec").open) $("#dlgRec").showModal();
   (prefill.name ? f.broker : f.name).focus();
@@ -562,6 +622,7 @@ function openRecord(id) {
   $("#autofillMsg").classList.add("hidden");
   setBrokerOptions(S.schedule.find((x) => x.no === r.schedule_no));
   syncDeposit(true);
+  syncFee(true);
   syncAlloc();
   $("#recTitle").textContent = r.name;
   const [label, c] = status(r);
@@ -710,6 +771,38 @@ function renderAlerts() {
   bar.classList.toggle("hidden", !msgs.length);
 }
 
+/* ============================================================ 증권사 수수료 표 */
+function addFeeRow(name, fee, isDefault) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td><input class="fee-name" value="${esc(name)}" placeholder="증권사 이름" ${isDefault ? "readonly" : ""}></td>
+    <td class="r"><input class="fee-amt" inputmode="numeric" value="${esc(fee)}" placeholder="원"></td>
+    <td>${isDefault ? "" : `<button type="button" class="x-del" aria-label="삭제">✕</button>`}</td>`;
+  tr.querySelector(".x-del")?.addEventListener("click", () => tr.remove());
+  $("#feeRows").appendChild(tr);
+}
+function openFees() {
+  $("#feeRows").innerHTML = "";
+  const t = feeTable();
+  for (const [name, fee] of Object.entries(t)) addFeeRow(name, fee, name in DEFAULT_FEES);
+  if ($("#dlgSettings").open) $("#dlgSettings").close();
+  $("#dlgFees").showModal();
+}
+async function saveFees(e) {
+  e.preventDefault();
+  const fees = {};
+  for (const tr of $$("#feeRows tr")) {
+    const name = tr.querySelector(".fee-name").value.trim();
+    const v = tr.querySelector(".fee-amt").value.replace(/,/g, "").trim();
+    if (!name || v === "" || isNaN(+v)) continue;
+    if (DEFAULT_FEES[name] !== +v) fees[name] = +v; // 기본값과 다른 것만 저장
+  }
+  try {
+    await mutate((d) => { d.fees = fees; }, "ipo: 증권사 청약수수료 표 수정");
+    $("#dlgFees").close();
+    toast("수수료 표를 저장했어요");
+  } catch (err) { toast(err.message); }
+}
+
 /* ============================================================ 설정 */
 function openSettings() {
   const c = ls.get("gh", {}) || {};
@@ -837,6 +930,15 @@ function bind() {
   $("#formRec").name.addEventListener("change", () => { autofillFromName(); syncDeposit(false); });
   for (const n of ["applied_qty", "offer_price"]) $("#formRec")[n].addEventListener("input", () => syncDeposit(false));
   for (const n of ["alloc_equal", "alloc_prop"]) $("#formRec")[n].addEventListener("input", syncAlloc);
+  $("#formRec").allocated_qty.addEventListener("input", () => syncFee(false));
+  for (const ev of ["input", "change"]) $("#formRec").broker.addEventListener(ev, () => syncFee(false));
+  $("#formRec").sub_fee.addEventListener("input", (e) => {
+    e.target.dataset.auto = e.target.value.trim() === "" ? "1" : "0"; // 직접 입력하면 그 값 유지, 지우면 다시 자동
+    syncFee(false);
+  });
+  $("#btnFees").onclick = openFees;
+  $("#btnFeeAdd").onclick = () => addFeeRow("", "");
+  $("#formFees").onsubmit = saveFees;
   $("#formRec").deposit.addEventListener("input", (e) => {
     e.target.dataset.auto = e.target.value.trim() === "" ? "1" : "0"; // 직접 입력하면 자동 계산 중지, 지우면 다시 자동
     syncDeposit(false);
