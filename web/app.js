@@ -665,13 +665,12 @@ function syncLoan() {
 
 /* ============================================================ 마통 계산 탭 */
 const parseRatio = (s) => { const m = String(s || "").replace(/,/g, "").match(/([\d.]+)\s*:\s*1/); return m ? +m[1] : null; };
+/** 청약 진행 중이거나 예정인 종목만 (마감일이 오늘 이후) */
 function loanPlanStocks() {
   const t = todayISO();
-  const end = new Date(); end.setDate(end.getDate() + 14);
-  const e = iso(end);
-  const from = iso(new Date(Date.now() - 2 * 86400000));
-  return S.schedule.filter((s) => s.sub_end >= from && s.sub_start <= e).sort((a, b) => a.sub_end.localeCompare(b.sub_end));
+  return S.schedule.filter((s) => s.sub_end && s.sub_end >= t).sort((a, b) => a.sub_start.localeCompare(b.sub_start) || a.name.localeCompare(b.name));
 }
+const loanOpen = new Set(); // 펼쳐 둔 종목
 function planOf(s) {
   const saved = ls.get("plan:" + s.no, {});
   const rec = myRecordFor(s);
@@ -710,11 +709,18 @@ function renderLoan() {
   }
   const stocks = loanPlanStocks();
   $("#loanEmpty").classList.toggle("hidden", stocks.length > 0);
+  const t = todayISO();
   $("#loanCards").innerHTML = stocks.map((s) => {
     const p = planOf(s), c = planCalc(s, p);
-    return `<div class="card loan-card" data-plan="${s.no}">
-      <div class="lc-head"><b>${myRecordFor(s) ? "★ " : ""}${esc(s.name)}</b>
-        <span class="muted small">${esc((s.brokers || "").split(",")[0])} · 청약 ${md(s.sub_start)}~${md(s.sub_end)} · 환불 ${md(c.refund)}${c.refundNote} · <b>${c.days}일</b></span></div>
+    const live = s.sub_start <= t;
+    return `<details class="loan-card" data-plan="${s.no}" ${loanOpen.has(s.no) ? "open" : ""}>
+      <summary class="lc-head">
+        <span class="lc-badge ${live ? "live" : ""}">${live ? "청약중" : dday(s.sub_start)}</span>
+        <span class="lc-title"><b>${myRecordFor(s) ? "★ " : ""}${esc(s.name)}</b>
+          <span class="muted small">${esc((s.brokers || "").split(",")[0])} · ${md(s.sub_start)}~${md(s.sub_end)} · 환불 ${md(c.refund)}${c.refundNote} · ${c.days}일</span></span>
+        <span class="lc-sum">${loanSummary(c)}</span>
+      </summary>
+      <div class="lc-body">
       <div class="lc-inputs">
         <label>청약수량(주)<input data-k="qty" inputmode="numeric" value="${esc(p.qty)}" placeholder="예: 2000"></label>
         <label>마통 사용액(원)<input data-k="loan" inputmode="numeric" value="${esc(p.loan)}" placeholder="비우면 증거금 전액"></label>
@@ -722,8 +728,17 @@ function renderLoan() {
         <label>예상 상장 수익률(%)<input data-k="ret" inputmode="decimal" value="${esc(p.ret)}" placeholder="예: 80"></label>
       </div>
       <div class="lc-out">${loanOutHTML(s, c)}</div>
-    </div>`;
+      </div>
+    </details>`;
   }).join("");
+}
+/** 접힌 줄에 보이는 한 줄 요약 */
+function loanSummary(c) {
+  if (!c.rate || !c.qty) return "";
+  if (c.propShares != null && c.propShares < 1) return `<span class="down">비례 1주 미만</span>`;
+  if (c.net != null) return `<span class="${c.net >= 0 ? "up" : "down"}">${signWon(c.net)}원</span>`;
+  if (c.breakeven != null && isFinite(c.breakeven)) return `분기 ${c.breakeven.toFixed(1)}%`;
+  return `이자 ${won(c.interest)}원`;
 }
 function loanOutHTML(s, c) {
   const cell = (l, v, cl = "") => `<div><div class="l">${l}</div><div class="v ${cl}">${v}</div></div>`;
@@ -1051,8 +1066,15 @@ function bind() {
     const p = {};
     for (const el of card.querySelectorAll("[data-k]")) p[el.dataset.k] = el.value.replace(/,/g, "").trim();
     ls.set("plan:" + s.no, p);
-    card.querySelector(".lc-out").innerHTML = loanOutHTML(s, planCalc(s, p));
+    const c = planCalc(s, p);
+    card.querySelector(".lc-out").innerHTML = loanOutHTML(s, c);
+    card.querySelector(".lc-sum").innerHTML = loanSummary(c);
   });
+  // 펼침 상태 기억 (다시 그려도 유지)
+  $("#loanCards").addEventListener("toggle", (e) => {
+    const d = e.target.closest("[data-plan]");
+    if (d) d.open ? loanOpen.add(+d.dataset.plan) : loanOpen.delete(+d.dataset.plan);
+  }, true);
   $("#formLoanSet").onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
