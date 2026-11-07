@@ -936,12 +936,65 @@ function renderStats() {
       }).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">기록이 없어요.</td></tr></tbody>`;
 
+  renderEntry(sold);
+
   const rank = sold.slice().sort((a, b) => b.k.profit - a.k.profit);
   $("#rankTable").innerHTML = rank.length
     ? `<thead><tr><th>#</th><th>종목</th><th>증권사</th><th class="r">매도</th><th class="r">손익</th><th class="r">수익률</th></tr></thead><tbody>` +
       rank.map((x, i) => `<tr data-rec="${esc(x.r.id)}" style="cursor:pointer"><td class="muted">${i + 1}</td><td><b>${esc(x.r.name)}</b></td><td>${esc(x.r.broker || "-")}</td>
         <td class="r">${won(x.k.sold)}주</td><td class="r ${cls(x.k.profit)}">${signWon(x.k.profit)}</td><td class="r ${cls(x.k.ret)}"><b>${pct(x.k.ret)}</b></td></tr>`).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">매도 기록이 없어요.</td></tr></tbody>`;
+}
+
+/* ============================================================ 통계: 진입가능척도 대비 수익률 */
+function renderEntry(sold) {
+  const pts = sold
+    .filter((x) => x.r.entry_score != null && x.r.entry_score !== "" && isFinite(+x.r.entry_score) && x.k.ret != null)
+    .map((x) => ({ x: +x.r.entry_score, y: x.k.ret * 100, r: x.r }));
+  const chart = $("#entryChart"), table = $("#entryTable"), corr = $("#entryCorr");
+  if (pts.length < 2) {
+    chart.innerHTML = `<p class="empty">매도한 종목 중 진입가능척도가 기록된 게 ${pts.length}건이에요. 2건 이상이면 그래프가 나와요.<br><small>청약 메시지의 '*진입가능척도'가 자동으로 기록되고, 기록 편집에서 직접 넣을 수도 있어요.</small></p>`;
+    table.innerHTML = ""; corr.textContent = "";
+    return;
+  }
+  // 상관계수 + 회귀선
+  const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (const p of pts) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; syy += (p.y - my) ** 2; }
+  const rCoef = sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
+  const slope = sxx ? sxy / sxx : 0, icpt = my - slope * mx;
+  const strength = rCoef == null ? "" : Math.abs(rCoef) >= 0.7 ? "강한" : Math.abs(rCoef) >= 0.4 ? "뚜렷한" : Math.abs(rCoef) >= 0.2 ? "약한" : "거의 없는";
+  corr.textContent = rCoef == null ? "" : `· 상관계수 ${rCoef.toFixed(2)} (${strength} ${rCoef >= 0 ? "양의" : "음의"} 관계, ${n}건)`;
+
+  // 산점도 (SVG)
+  const W = 600, H = 280, L = 48, R = 14, T = 14, B = 34;
+  let x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
+  let y0 = Math.min(0, ...pts.map((p) => p.y)), y1 = Math.max(0, ...pts.map((p) => p.y));
+  const padX = (x1 - x0 || 1) * 0.08, padY = (y1 - y0 || 1) * 0.1;
+  x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+  const sx = (v) => L + ((v - x0) / (x1 - x0)) * (W - L - R);
+  const sy = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const ticks = (a, b, k) => Array.from({ length: k + 1 }, (_, i) => a + ((b - a) * i) / k);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="진입가능척도 대비 수익률 산점도">`;
+  for (const v of ticks(y0, y1, 4)) svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${L - 6}" y="${sy(v) + 4}" text-anchor="end">${Math.round(v)}%</text>`;
+  for (const v of ticks(x0, x1, 4)) svg += `<text x="${sx(v)}" y="${H - B + 16}" text-anchor="middle">${Math.round(v)}</text>`;
+  svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">진입가능척도</text>`;
+  if (y0 < 0 && y1 > 0) svg += `<line class="zero" x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}"/>`;
+  svg += `<line class="trend" x1="${sx(x0)}" y1="${sy(icpt + slope * x0)}" x2="${sx(x1)}" y2="${sy(icpt + slope * x1)}"/>`;
+  for (const p of pts) svg += `<circle class="${p.y >= 0 ? "up" : "down"}" cx="${sx(p.x)}" cy="${sy(p.y)}" r="5" data-rec="${esc(p.r.id)}"><title>${esc(p.r.name)} · 척도 ${p.x} · 수익률 ${p.y >= 0 ? "+" : ""}${p.y.toFixed(1)}%</title></circle>`;
+  chart.innerHTML = svg + `</svg>`;
+
+  // 구간별 (데이터 4분위로 나눔, 적으면 2~3구간)
+  const sorted = pts.slice().sort((a, b) => a.x - b.x);
+  const k = n >= 12 ? 4 : n >= 6 ? 3 : 2;
+  const groups = Array.from({ length: k }, (_, i) => sorted.slice(Math.round((i * n) / k), Math.round(((i + 1) * n) / k))).filter((g) => g.length);
+  table.innerHTML = `<thead><tr><th>척도 구간</th><th class="r">건수</th><th class="r">평균 수익률</th><th class="r">승률</th></tr></thead><tbody>` +
+    groups.map((g) => {
+      const avg = g.reduce((a, p) => a + p.y, 0) / g.length;
+      const win = g.filter((p) => p.y > 0).length / g.length;
+      return `<tr><td>${Math.round(g[0].x)} ~ ${Math.round(g[g.length - 1].x)}</td><td class="r">${g.length}</td>
+        <td class="r ${cls(avg)}"><b>${avg >= 0 ? "+" : ""}${avg.toFixed(1)}%</b></td><td class="r">${Math.round(win * 100)}%</td></tr>`;
+    }).join("") + "</tbody>";
 }
 
 /* ============================================================ 화면 상단 알림 */
