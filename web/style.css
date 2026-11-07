@@ -179,6 +179,28 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .fee-wrap input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--surface); color: var(--text); width: 100%; min-width: 0; }
 .fee-wrap input[readonly] { border-color: transparent; background: transparent; font-weight: 600; }
 .fee-wrap .fee-amt { text-align: right; max-width: 110px; }
+/* 마통 계산 */
+.loan-settings { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+.loan-set-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+.loan-set-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.loan-set-row label.chk { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-weight: 400; font-size: 13px; padding-bottom: 6px; }
+.loan-set-row input[name=loanRate] { border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; background: var(--surface); color: var(--text); width: 140px; font-size: 14px; }
+.loan-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.loan-card { display: flex; flex-direction: column; gap: 10px; }
+.lc-head { display: flex; flex-direction: column; gap: 2px; }
+.lc-head b { font-size: 15px; }
+.lc-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+.lc-inputs label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.lc-inputs input { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); color: var(--text); font-size: 14px; min-width: 0; width: 100%; }
+.lc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.lc-grid > div { background: var(--surface-2); border-radius: 8px; padding: 7px 10px; }
+.lc-grid .l { font-size: 11px; color: var(--muted); font-weight: 600; }
+.lc-grid .v { font-weight: 800; font-variant-numeric: tabular-nums; }
+.lc-verdict { margin: 8px 0 0; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.lc-verdict.good { background: var(--up-soft); }
+.lc-verdict.bad { background: var(--down-soft); }
+@media (max-width: 700px) { .loan-cards { grid-template-columns: 1fr; } .tabs button { padding: 8px 6px; font-size: 13px; } }
+
 /* 매도대금 출금 */
 .dot.cash { background: #12a150; }
 .ev.cash { background: #e3f6ea; color: #0f7a3d; box-shadow: none; }

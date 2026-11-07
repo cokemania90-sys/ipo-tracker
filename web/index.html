@@ -23,6 +23,7 @@
     <button role="tab" data-tab="calendar" class="on">캘린더</button>
     <button role="tab" data-tab="records">내 청약</button>
     <button role="tab" data-tab="stats">수익 통계</button>
+    <button role="tab" data-tab="loan">마통 계산</button>
   </nav>
   <div class="top-actions">
     <button id="btnTheme" class="ghost icon" title="라이트/다크 모드" aria-label="라이트/다크 모드 전환">◐</button>
@@ -120,7 +121,21 @@
         <div class="table-wrap"><table class="mini" id="rankTable"></table></div>
       </div>
     </div>
-    <p class="muted note">실현손익 = 매도금액 − (매도수량 × 공모가) − 매도 수수료·세금 − 청약수수료. 기간은 첫 매도일 기준이에요.</p>
+    <p class="muted note" id="statNote">실현손익 = 매도금액 − (매도수량 × 공모가) − 매도 수수료·세금 − 청약수수료 − 마통 이자(마통 계산 탭에서 켠 경우). 기간은 첫 매도일 기준이에요.</p>
+  </section>
+
+  <!-- 마통 계산 -->
+  <section id="tab-loan" class="tab">
+    <div class="card loan-settings">
+      <form id="formLoanSet" class="loan-set-row">
+        <label>내 마이너스통장 금리 (연 %)<input name="loanRate" inputmode="decimal" placeholder="예: 3.362"></label>
+        <label class="chk"><input type="checkbox" name="deductLoan"> 수익률 계산할 때 마통 이자 빼기</label>
+        <button class="primary sm" type="submit">저장</button>
+      </form>
+      <p class="muted small">이자 = 마통 사용액 × 금리 × 대출일수 ÷ 365. 대출일수는 <b>청약 마감일 → 환불일</b> (주말 포함, 하루 단위)로 계산해요. 비례 배정 예상 = 청약수량 ÷ 비례경쟁률. 균등 1주는 최소수량만 넣어도 받으니, 여기서는 <b>비례를 노리고 추가로 넣는 돈</b>의 이자와 이익을 비교해요.</p>
+    </div>
+    <div id="loanCards" class="loan-cards"></div>
+    <p id="loanEmpty" class="empty hidden">지금 청약 중이거나 2주 안에 청약하는 종목이 없어요.</p>
   </section>
 </main>
 
@@ -170,6 +185,8 @@
       <label>진입가능척도<input name="entry_score" inputmode="decimal" data-num></label>
       <label>청약수량(주)<input name="applied_qty" inputmode="numeric" data-num></label>
       <label>증거금(원) <span id="depHint" class="dep-hint"></span><input name="deposit" inputmode="numeric" data-num></label>
+      <label>마통 사용금(원) <span id="loanHint" class="dep-hint"></span><input name="loan_amount" inputmode="numeric" data-num placeholder="마이너스통장에서 쓴 금액"></label>
+      <label>마통 금리(연 %)<input name="loan_rate" inputmode="decimal" data-num placeholder="설정값 자동"></label>
       <label class="hl">균등 배정(주)<input name="alloc_equal" inputmode="numeric" data-num></label>
       <label class="hl">비례 배정(주)<input name="alloc_prop" inputmode="numeric" data-num></label>
       <label class="hl">배정 합계(주) <span id="allocHint" class="dep-hint"></span><input name="allocated_qty" inputmode="numeric" data-num></label>

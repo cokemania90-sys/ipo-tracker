@@ -129,6 +129,7 @@ def parse_detail(h):
         offer_price=to_num(rx(r"확정공모가 ([\d,]+) 원")),
         price_band=rx(r"희망공모가액 ([\d,]+ ~ [\d,]+) 원"),
         competition=rx(r"청약경쟁률 ([\d.,]+:1)"),
+        prop_competition=rx(r"청약경쟁률 [\d.,]+:1 \(비례 ([\d.,]+:1)\)"),
         inst_competition=rx(r"기관경쟁률 ([\d.,]+:1)"),
         lockup_pct=to_num(rx(r"의무보유확약 ([\d.]+) ?%")),
         offer_amount=to_num(rx(r"공모금액 ([\d,]+) \(백만원\)")),

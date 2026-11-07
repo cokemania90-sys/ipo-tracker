@@ -247,15 +247,27 @@ function pendingCash() {
 }
 
 /* ============================================================ 계산 */
+/* ---------- 마이너스통장 이자 ---------- */
+const appSettings = () => (typeof rawRecords !== "undefined" && rawRecords && rawRecords.settings) || {};
+const daysBetween = (a, b) => (a && b ? Math.max(0, Math.round((parseISO(b) - parseISO(a)) / 86400000)) : 0);
+const loanDays = (subEnd, refund) => daysBetween(subEnd, refund);
+const interestOf = (amount, ratePct, days) => (amount && ratePct && days ? Math.round((amount * ratePct / 100 * days) / 365) : 0);
+/** 기록의 마통 이자 (기록에 저장된 금리 우선, 없으면 설정 금리) */
+function loanInterest(r) {
+  const rate = r.loan_rate != null && r.loan_rate !== "" ? +r.loan_rate : +appSettings().loanRate || 0;
+  return interestOf(+r.loan_amount || 0, rate, loanDays(r.sub_end || r.sub_start, r.refund_date));
+}
+
 function calc(r) {
   const sales = r.sales || [];
   const sold = sales.reduce((a, s) => a + (+s.qty || 0), 0);
   const proceeds = sales.reduce((a, s) => a + (+s.qty || 0) * (+s.price || 0), 0);
-  const fees = sales.reduce((a, s) => a + (+s.fee || 0), 0) + (+r.sub_fee || 0);
+  const interest = appSettings().deductLoan ? loanInterest(r) : 0;
+  const fees = sales.reduce((a, s) => a + (+s.fee || 0), 0) + (+r.sub_fee || 0) + interest;
   const cost = sold * (+r.offer_price || 0);
-  const profit = sold ? proceeds - cost - fees : (r.sub_fee ? -r.sub_fee : 0);
+  const profit = (sold ? proceeds - cost : 0) - fees;
   const firstSell = sales.map((s) => s.sell_date).filter(Boolean).sort()[0] || null;
-  return { sold, proceeds, fees, cost, profit, ret: cost ? profit / cost : null, firstSell, avgSell: sold ? proceeds / sold : null };
+  return { sold, proceeds, fees, interest, cost, profit, ret: cost ? profit / cost : null, firstSell, avgSell: sold ? proceeds / sold : null };
 }
 
 function status(r) {
@@ -325,6 +337,7 @@ function renderAll() {
   renderRecords();
   renderStats();
   renderAlerts();
+  renderLoan();
 }
 
 function renderConn() {
@@ -491,7 +504,7 @@ function renderRecords() {
       <td class="r">${won(r.offer_price)}</td>
       <td class="r">${allocText(r)}</td>
       <td class="r">${k.sold ? `${won(k.sold)}주 @${won(k.avgSell)}` : "-"}</td>
-      <td class="r ${cls(k.profit)}"><b>${k.sold || r.sub_fee ? signWon(k.profit) : "-"}</b></td>
+      <td class="r ${cls(k.profit)}"><b>${k.sold || k.fees ? signWon(k.profit) : "-"}</b></td>
       <td class="r ${cls(k.ret)}">${k.sold ? pct(k.ret) : "-"}</td>
     </tr>`;
   }).join("");
@@ -639,6 +652,96 @@ function syncFee(initial) {
   $("#feeHint").textContent = hint;
 }
 
+/* ---------- 기록 폼: 마통 이자 표시 ---------- */
+function syncLoan() {
+  const f = $("#formRec");
+  const amt = toNum(f.loan_amount.value);
+  if (amt && f.loan_rate.value.trim() === "" && appSettings().loanRate) f.loan_rate.value = appSettings().loanRate;
+  const rate = toNum(f.loan_rate.value);
+  const days = loanDays(f.sub_end.value || f.sub_start.value, f.refund_date.value);
+  const it = interestOf(amt, rate, days);
+  $("#loanHint").textContent = amt && rate ? (days ? `이자 약 ${won(it)}원 · ${days}일` : "환불일 입력 시 계산") : "";
+}
+
+/* ============================================================ 마통 계산 탭 */
+const parseRatio = (s) => { const m = String(s || "").replace(/,/g, "").match(/([\d.]+)\s*:\s*1/); return m ? +m[1] : null; };
+function loanPlanStocks() {
+  const t = todayISO();
+  const end = new Date(); end.setDate(end.getDate() + 14);
+  const e = iso(end);
+  const from = iso(new Date(Date.now() - 2 * 86400000));
+  return S.schedule.filter((s) => s.sub_end >= from && s.sub_start <= e).sort((a, b) => a.sub_end.localeCompare(b.sub_end));
+}
+function planOf(s) {
+  const saved = ls.get("plan:" + s.no, {});
+  const rec = myRecordFor(s);
+  return {
+    qty: saved.qty ?? (rec && rec.applied_qty) ?? "",
+    loan: saved.loan ?? (rec && rec.loan_amount) ?? "",
+    ratio: saved.ratio ?? (parseRatio(s.prop_competition) || ""),
+    ret: saved.ret ?? "",
+  };
+}
+function planCalc(s, p) {
+  const rate = +appSettings().loanRate || 0;
+  let price = s.offer_price, priceNote = "확정가";
+  if (!price && s.price_band) { price = toNum(String(s.price_band).split("~").pop()); priceNote = "희망가 상단"; }
+  const depRate = s.deposit_rate || 50;
+  const qty = toNum(p.qty) || 0;
+  const deposit = qty && price ? Math.round(qty * price * depRate / 100) : 0;
+  const loan = p.loan === "" || p.loan == null ? deposit : toNum(p.loan) || 0;
+  let refund = s.refund_date, refundNote = "";
+  if (!refund && s.sub_end) { refund = addBizDays(s.sub_end, 2); refundNote = " (예상)"; }
+  const days = loanDays(s.sub_end, refund);
+  const interest = interestOf(loan, rate, days);
+  const ratio = toNum(p.ratio);
+  const propShares = ratio && qty ? qty / ratio : null;
+  const valuePerPct = propShares != null && price ? propShares * price / 100 : null; // 수익률 1%당 이익
+  const breakeven = valuePerPct ? interest / valuePerPct : null; // %
+  const ret = toNum(p.ret);
+  const gain = valuePerPct != null && ret != null && p.ret !== "" ? Math.round(valuePerPct * ret) : null;
+  return { rate, price, priceNote, depRate, qty, deposit, loan, refund, refundNote, days, interest, ratio, propShares, breakeven, ret, gain, net: gain != null ? gain - interest : null };
+}
+function renderLoan() {
+  const f = $("#formLoanSet");
+  if (document.activeElement?.form !== f) {
+    f.loanRate.value = appSettings().loanRate ?? "";
+    f.deductLoan.checked = !!appSettings().deductLoan;
+  }
+  const stocks = loanPlanStocks();
+  $("#loanEmpty").classList.toggle("hidden", stocks.length > 0);
+  $("#loanCards").innerHTML = stocks.map((s) => {
+    const p = planOf(s), c = planCalc(s, p);
+    return `<div class="card loan-card" data-plan="${s.no}">
+      <div class="lc-head"><b>${myRecordFor(s) ? "★ " : ""}${esc(s.name)}</b>
+        <span class="muted small">${esc((s.brokers || "").split(",")[0])} · 청약 ${md(s.sub_start)}~${md(s.sub_end)} · 환불 ${md(c.refund)}${c.refundNote} · <b>${c.days}일</b></span></div>
+      <div class="lc-inputs">
+        <label>청약수량(주)<input data-k="qty" inputmode="numeric" value="${esc(p.qty)}" placeholder="예: 2000"></label>
+        <label>마통 사용액(원)<input data-k="loan" inputmode="numeric" value="${esc(p.loan)}" placeholder="비우면 증거금 전액"></label>
+        <label>비례경쟁률(:1)<input data-k="ratio" inputmode="decimal" value="${esc(p.ratio)}" placeholder="${s.prop_competition ? "" : "마감 후 공개"}"></label>
+        <label>예상 상장 수익률(%)<input data-k="ret" inputmode="decimal" value="${esc(p.ret)}" placeholder="예: 80"></label>
+      </div>
+      <div class="lc-out">${loanOutHTML(s, c)}</div>
+    </div>`;
+  }).join("");
+}
+function loanOutHTML(s, c) {
+  const cell = (l, v, cl = "") => `<div><div class="l">${l}</div><div class="v ${cl}">${v}</div></div>`;
+  let verdict = "";
+  if (!c.rate) verdict = `<p class="lc-verdict muted">위에 마이너스통장 금리를 입력하면 이자를 계산해요.</p>`;
+  else if (!c.qty) verdict = `<p class="lc-verdict muted">청약수량을 넣으면 계산해요.</p>`;
+  else if (c.propShares == null) verdict = `<p class="lc-verdict muted">비례경쟁률을 넣으면 손익분기 수익률을 계산해요. (38에는 청약 마감 후 공개돼요)</p>`;
+  else if (c.propShares < 1) verdict = `<p class="lc-verdict bad">비례 배정 약 ${c.propShares.toFixed(2)}주 예상 — 1주도 못 받을 가능성이 커서 <b>이자 ${won(c.interest)}원만 나갈 수 있어요.</b></p>`;
+  else if (c.net != null) verdict = `<p class="lc-verdict ${c.net >= 0 ? "good" : "bad"}">상장 수익률 ${c.ret}% 가정 시 비례분 이익 ${won(c.gain)}원 − 이자 ${won(c.interest)}원 = <b>${signWon(c.net)}원</b> ${c.net >= 0 ? "이득" : "손해"} (손익분기 ${c.breakeven.toFixed(1)}%)</p>`;
+  else verdict = `<p class="lc-verdict">상장 수익률이 <b>${c.breakeven.toFixed(1)}%</b> 넘어야 이자보다 이득이에요.</p>`;
+  return `<div class="lc-grid">
+    ${cell(`증거금 (${c.depRate}% · ${c.priceNote})`, c.deposit ? won(c.deposit) + "원" : "-")}
+    ${cell(`이자 (${c.rate || "-"}% · ${c.days}일)`, c.rate && c.loan ? won(c.interest) + "원" : "-", c.interest ? "down" : "")}
+    ${cell("예상 비례 배정", c.propShares != null ? `약 ${c.propShares.toFixed(2)}주` : "-")}
+    ${cell("손익분기 수익률", c.breakeven != null && isFinite(c.breakeven) ? `${c.breakeven.toFixed(1)}%` : "-")}
+  </div>${verdict}`;
+}
+
 /* ---------- 배정 합계 = 균등 + 비례 (둘 다 비어 있으면 합계를 직접 입력 가능) ---------- */
 function syncAlloc() {
   const f = $("#formRec");
@@ -670,6 +773,7 @@ function openNewRecord(prefill = {}) {
   syncDeposit(true);
   syncFee(true);
   syncAlloc();
+  syncLoan();
   if (!$("#dlgRec").open) $("#dlgRec").showModal();
   (prefill.name ? f.broker : f.name).focus();
 }
@@ -688,6 +792,7 @@ function openRecord(id) {
   syncDeposit(true);
   syncFee(true);
   syncAlloc();
+  syncLoan();
   $("#recTitle").textContent = r.name;
   const [label, c] = status(r);
   $("#recStatus").className = "badge " + c;
@@ -771,7 +876,7 @@ function renderStats() {
 
   const per = {};
   for (const x of inYear) {
-    if (!x.date || (!x.k.sold && !x.r.sub_fee)) continue;
+    if (!x.date || (!x.k.sold && !x.k.fees)) continue;
     const key = periodKey(x.date, S.statPeriod);
     (per[key] ||= { profit: 0, n: 0 }).profit += x.k.profit;
     per[key].n++;
@@ -937,6 +1042,28 @@ function bind() {
     if (Math.abs(dx) > 60) shift(dx < 0 ? 1 : -1);
     sx = null;
   });
+  // 마통 계산 탭: 입력하면 그 카드만 다시 계산 (입력값은 이 기기에 저장)
+  $("#loanCards").addEventListener("input", (e) => {
+    const inp = e.target.closest("[data-k]");
+    const card = e.target.closest("[data-plan]");
+    if (!inp || !card) return;
+    const s = S.schedule.find((x) => x.no === +card.dataset.plan);
+    const p = {};
+    for (const el of card.querySelectorAll("[data-k]")) p[el.dataset.k] = el.value.replace(/,/g, "").trim();
+    ls.set("plan:" + s.no, p);
+    card.querySelector(".lc-out").innerHTML = loanOutHTML(s, planCalc(s, p));
+  });
+  $("#formLoanSet").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const rate = toNum(f.loanRate.value);
+    try {
+      await mutate((d) => { d.settings = { ...(d.settings || {}), loanRate: rate, deductLoan: f.deductLoan.checked }; }, "ipo: 마이너스통장 금리 설정");
+      toast(rate ? `금리 ${rate}% 저장${f.deductLoan.checked ? " · 수익률에 이자 반영" : ""}` : "금리를 지웠어요");
+    } catch (err) { toast(err.message); }
+  };
+  for (const n of ["loan_amount", "loan_rate", "sub_end", "sub_start", "refund_date"]) $("#formRec")[n].addEventListener("input", syncLoan);
+
   // 매도 기록의 '이체' 체크
   $("#salesTable").addEventListener("change", async (e) => {
     const cb = e.target.closest("[data-xfer]");
