@@ -94,6 +94,19 @@
       </div>
       <p id="recEmpty" class="empty hidden">아직 기록이 없어요. 오른쪽 위 <b>+ 청약 기록</b>에 청약 메시지를 붙여넣어 보세요.</p>
     </div>
+    <div class="card formula">
+      <h3>계산식</h3>
+      <dl>
+        <dt>실현손익</dt>
+        <dd>매도금액 − (매도수량 × 공모가) − 매도 수수료·세금 − 청약수수료 − 마통 이자<span id="loanDeductState"></span></dd>
+        <dt>수익률</dt>
+        <dd>실현손익 ÷ (매도수량 × 공모가) × 100</dd>
+        <dt>마통 이자</dt>
+        <dd>마통 사용금 × 연 금리 × 대출일수 ÷ 365 <small class="muted">(대출일수 = 청약 마지막 날 → 환불일, 주말 포함)</small></dd>
+        <dt>매도금액</dt>
+        <dd>매도수량 × 매도가 <small class="muted">(나눠 판 경우 모두 합산)</small></dd>
+      </dl>
+    </div>
   </section>
 
   <!-- 통계 -->

@@ -492,6 +492,8 @@ function renderRecords() {
     return true;
   });
   $("#recEmpty").classList.toggle("hidden", S.records.length > 0);
+  const on = !!appSettings().deductLoan;
+  $("#loanDeductState").innerHTML = `<span class="state ${on ? "on" : ""}">${on ? "마통 이자 반영 중" : "마통 이자 미반영 · 마통 계산 탭에서 켤 수 있어요"}</span>`;
   $("#recBody").innerHTML = rows.map((r) => {
     const [label, c] = status(r);
     const k = calc(r);

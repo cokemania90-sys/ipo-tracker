@@ -179,6 +179,15 @@ td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
 .fee-wrap input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--surface); color: var(--text); width: 100%; min-width: 0; }
 .fee-wrap input[readonly] { border-color: transparent; background: transparent; font-weight: 600; }
 .fee-wrap .fee-amt { text-align: right; max-width: 110px; }
+/* 내 청약: 계산식 */
+.formula { margin-top: 14px; }
+.formula dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+.formula dt { font-weight: 700; white-space: nowrap; }
+.formula dd { margin: 0; }
+.formula .state { font-size: 11px; font-weight: 700; margin-left: 6px; padding: 1px 6px; border-radius: 99px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.formula .state.on { background: var(--accent-soft); color: var(--accent); }
+@media (max-width: 700px) { .formula dl { grid-template-columns: 1fr; gap: 2px; } .formula dd { margin-bottom: 8px; } }
+
 /* 마통 계산 */
 .loan-settings { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
 .loan-set-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
