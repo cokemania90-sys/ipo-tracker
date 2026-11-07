@@ -974,7 +974,7 @@ function renderEntry(sold) {
   let x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
   let y0 = Math.min(0, ...pts.map((p) => p.y)), y1 = Math.max(0, ...pts.map((p) => p.y));
   const padX = (x1 - x0 || 1) * 0.08, padY = (y1 - y0 || 1) * 0.1;
-  x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+  x0 = Math.max(0, x0 - padX); x1 += padX; y0 -= padY; y1 += padY; // 척도는 0 이상이라 축도 0 아래로 안 내려감
   const sx = (v) => L + ((x1 - v) / (x1 - x0)) * (W - L - R); // X축 반전: 오른쪽일수록 척도 낮음(좋음)
   const sy = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const ticks = (a, b, k) => Array.from({ length: k + 1 }, (_, i) => a + ((b - a) * i) / k);
