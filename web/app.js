@@ -885,14 +885,17 @@ function renderStats() {
   const allocated = inYear.filter((x) => !(x.r.allocated_qty == null || x.r.allocated_qty === ""));
   const gotShares = allocated.filter((x) => +x.r.allocated_qty > 0);
   const wins = sold.filter((x) => x.k.profit > 0).length;
-  const best = sold.slice().sort((a, b) => b.k.profit - a.k.profit)[0];
+  const byRet = (a, b) => (b.k.ret ?? -Infinity) - (a.k.ret ?? -Infinity);
+  const best = sold.slice().sort(byRet)[0];
+  const totalRet = totalCost ? totalProfit / totalCost : null;
+  const avgRet = sold.length ? sold.reduce((a, x) => a + (x.k.ret || 0), 0) / sold.length : null;
 
   $("#kpis").innerHTML = [
-    ["실현손익", `<span class="${cls(totalProfit)}">${signWon(totalProfit)}원</span>`, `매도 ${sold.length}종목`],
-    ["평균 수익률", `<span class="${cls(totalProfit)}">${pct(totalCost ? totalProfit / totalCost : null)}</span>`, `매도 원가 ${won(totalCost)}원 기준`],
-    ["참여 종목", `${inYear.length}건`, `배정 성공 ${gotShares.length} / ${allocated.length}`],
+    ["평균 수익률", `<span class="${cls(totalRet)}">${pct(totalRet)}</span>`, `종목 단순평균 ${pct(avgRet, 1)} · 매도 ${sold.length}종목`],
     ["승률", sold.length ? `${Math.round((wins / sold.length) * 100)}%` : "-", `수익 ${wins} · 손실 ${sold.length - wins}`],
-    ["최고 수익", best ? `<span class="${cls(best.k.profit)}">${signWon(best.k.profit)}</span>` : "-", best ? esc(best.r.name) : ""],
+    ["최고 수익률", best ? `<span class="${cls(best.k.ret)}">${pct(best.k.ret, 1)}</span>` : "-", best ? `${esc(best.r.name)} · ${signWon(best.k.profit)}원` : ""],
+    ["실현손익", `<span class="${cls(totalProfit)}">${signWon(totalProfit)}원</span>`, `매도 원가 ${won(totalCost)}원`],
+    ["참여 종목", `${inYear.length}건`, `배정 성공 ${gotShares.length} / ${allocated.length}`],
   ].map(([l, v, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
 
   const per = {};
@@ -904,22 +907,23 @@ function renderStats() {
     o.cost += x.k.cost;
     o.n++;
   }
+  // 막대 높이 = 기간 수익률 (손익 ÷ 매도 원가)
   const keys = Object.keys(per).sort();
-  const maxAbs = Math.max(1, ...keys.map((k) => Math.abs(per[k].profit)));
-  const anyNeg = keys.some((k) => per[k].profit < 0);
+  const rrOf = (k) => (per[k].cost ? per[k].profit / per[k].cost : 0);
+  const maxAbs = Math.max(0.0001, ...keys.map((k) => Math.abs(rrOf(k))));
+  const anyNeg = keys.some((k) => rrOf(k) < 0);
   $("#periodChart").innerHTML = keys.length
     ? keys.map((k) => {
-        const v = per[k].profit, h = (Math.abs(v) / maxAbs) * 100;
-        const short = Math.abs(v) >= 10000 ? (v / 10000).toFixed(Math.abs(v) >= 1e6 ? 0 : 1) + "만" : won(v);
-        const rr = per[k].cost ? v / per[k].cost : null;
-        return `<div class="bar-col" title="${k}: ${signWon(v)}원 · 수익률 ${pct(rr)} (${per[k].n}종목)">
-          <div class="rr ${cls(rr)}">${rr == null ? "" : pct(rr, 1)}</div>
-          <div class="val ${cls(v)}">${short}</div>
-          <div class="bar-area"><div class="pos">${v > 0 ? `<div class="bar up" style="height:${h}%"></div>` : ""}</div>
-          ${anyNeg ? `<div class="neg">${v < 0 ? `<div class="bar down" style="height:${h}%"></div>` : ""}</div>` : ""}</div>
+        const v = per[k].profit, rr = rrOf(k), h = (Math.abs(rr) / maxAbs) * 100;
+        const short = Math.abs(v) >= 10000 ? (v > 0 ? "+" : "") + (v / 10000).toFixed(Math.abs(v) >= 1e6 ? 0 : 1) + "만" : signWon(v);
+        return `<div class="bar-col" title="${k}: 수익률 ${pct(rr)} · ${signWon(v)}원 (${per[k].n}종목)">
+          <div class="val ${cls(rr)}">${pct(rr, 1)}</div>
+          <div class="rr ${cls(v)}">${short}</div>
+          <div class="bar-area"><div class="pos">${rr > 0 ? `<div class="bar up" style="height:${h}%"></div>` : ""}</div>
+          ${anyNeg ? `<div class="neg">${rr < 0 ? `<div class="bar down" style="height:${h}%"></div>` : ""}</div>` : ""}</div>
           <div class="lab">${k}</div></div>`;
       }).join("")
-    : `<p class="empty">매도 기록이 생기면 여기에 기간별 손익이 표시돼요.</p>`;
+    : `<p class="empty">매도 기록이 생기면 여기에 기간별 수익률이 표시돼요.</p>`;
 
   const br = {};
   for (const x of inYear) {
@@ -930,26 +934,29 @@ function renderStats() {
     o.cost += x.k.cost;
     if (x.k.sold) o.profit += x.k.profit;
   }
-  const bl = Object.entries(br).sort((a, b) => b[1].profit - a[1].profit);
-  const bMax = Math.max(0.0001, ...bl.map(([, o]) => Math.abs(o.cost ? o.profit / o.cost : 0)));
+  const bret = (o) => (o.cost ? o.profit / o.cost : null);
+  const bl = Object.entries(br).sort((a, b) => (bret(b[1]) ?? -Infinity) - (bret(a[1]) ?? -Infinity));
+  const bMax = Math.max(0.0001, ...bl.map(([, o]) => Math.abs(bret(o) || 0)));
   $("#brokerTable").innerHTML = bl.length
-    ? `<thead><tr><th>증권사</th><th class="r">참여/배정</th><th class="r">배정주</th><th class="r">손익</th><th class="r">수익률</th><th></th></tr></thead><tbody>` +
+    ? `<thead><tr><th>증권사</th><th class="r">수익률</th><th></th><th class="r">손익</th><th class="r">참여/배정</th><th class="r">배정주</th></tr></thead><tbody>` +
       bl.map(([b, o]) => {
-        const ret = o.cost ? o.profit / o.cost : null;
+        const ret = bret(o);
         const w = ret == null ? 0 : (Math.abs(ret) / bMax) * 100;
-        return `<tr><td><b>${esc(b)}</b></td><td class="r">${o.n} / ${o.allocN}</td><td class="r">${won(o.alloc)}</td>
-          <td class="r ${cls(o.profit)}">${o.cost ? signWon(o.profit) : "-"}</td><td class="r ${cls(ret)}"><b>${pct(ret)}</b></td>
-          <td><div class="hbar"><i style="left:0;width:${w}%;background:var(--${ret < 0 ? "down" : "up"})"></i></div></td></tr>`;
+        return `<tr><td><b>${esc(b)}</b></td><td class="r ${cls(ret)}"><b>${pct(ret, 1)}</b></td>
+          <td><div class="hbar"><i style="left:0;width:${w}%;background:var(--${ret < 0 ? "down" : "up"})"></i></div></td>
+          <td class="r ${cls(o.profit)}"><small>${o.cost ? signWon(o.profit) : "-"}</small></td>
+          <td class="r">${o.n} / ${o.allocN}</td><td class="r">${won(o.alloc)}</td></tr>`;
       }).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">기록이 없어요.</td></tr></tbody>`;
 
   renderEntry(sold);
 
-  const rank = sold.slice().sort((a, b) => b.k.profit - a.k.profit);
+  const rank = sold.slice().sort(byRet);
   $("#rankTable").innerHTML = rank.length
-    ? `<thead><tr><th>#</th><th>종목</th><th>증권사</th><th class="r">매도</th><th class="r">손익</th><th class="r">수익률</th></tr></thead><tbody>` +
-      rank.map((x, i) => `<tr data-rec="${esc(x.r.id)}" style="cursor:pointer"><td class="muted">${i + 1}</td><td><b>${esc(x.r.name)}</b></td><td>${esc(x.r.broker || "-")}</td>
-        <td class="r">${won(x.k.sold)}주</td><td class="r ${cls(x.k.profit)}">${signWon(x.k.profit)}</td><td class="r ${cls(x.k.ret)}"><b>${pct(x.k.ret)}</b></td></tr>`).join("") + "</tbody>"
+    ? `<thead><tr><th>#</th><th>종목</th><th class="r">수익률</th><th class="r">손익</th><th>증권사</th><th class="r">매도</th></tr></thead><tbody>` +
+      rank.map((x, i) => `<tr data-rec="${esc(x.r.id)}" style="cursor:pointer"><td class="muted">${i + 1}</td><td><b>${esc(x.r.name)}</b></td>
+        <td class="r ${cls(x.k.ret)}"><b>${pct(x.k.ret, 1)}</b></td><td class="r ${cls(x.k.profit)}"><small>${signWon(x.k.profit)}</small></td>
+        <td>${esc(x.r.broker || "-")}</td><td class="r">${won(x.k.sold)}주</td></tr>`).join("") + "</tbody>"
     : `<tbody><tr><td class="muted">매도 기록이 없어요.</td></tr></tbody>`;
 }
 
