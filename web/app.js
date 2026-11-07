@@ -908,7 +908,7 @@ function renderStats() {
     o.n++;
   }
   // 막대 높이 = 기간 수익률 (손익 ÷ 매도 원가)
-  const keys = Object.keys(per).sort();
+  const keys = Object.keys(per).sort().reverse(); // 최근 기간이 왼쪽
   const rrOf = (k) => (per[k].cost ? per[k].profit / per[k].cost : 0);
   const maxAbs = Math.max(0.0001, ...keys.map((k) => Math.abs(rrOf(k))));
   const anyNeg = keys.some((k) => rrOf(k) < 0);
